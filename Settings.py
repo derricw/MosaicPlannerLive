@@ -105,7 +105,7 @@ class SessionSettings():
         self.arrayfiledict = arrayfiledict
         self.pointer = pointer
 
-    def to_file(self,filetype = '.yaml'):
+    def to_file(self,filetype ='.yaml'):
         data = {'Meta Experiment' : self.meta_experiment_name,
                     'Ribbon Number': self.Ribbon_num,
                     'Data Filepaths' : self.outdirdict,
@@ -121,6 +121,8 @@ class SessionSettings():
 
 
 class RibbonNumberDialog(wx.Dialog):
+    """ #DCW No longer used.
+    """
     def __init__(self,parent,id,style,title = "Enter Number of Ribbons"):
         wx.Dialog.__init__(self,parent,id,title,style = wx.DEFAULT_DIALOG_STYLE, size = (200,75))
         vbox = wx.BoxSizer(wx.VERTICAL)

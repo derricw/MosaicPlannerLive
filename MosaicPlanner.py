@@ -23,6 +23,10 @@ import time
 import multiprocessing as mp
 import pickle
 import json
+
+import logging
+logging.getLogger('MosaicPlanner').addHandler(logging.NullHandler())
+
 import wx
 import numpy as np
 import wx.lib.intctrl
@@ -39,25 +43,54 @@ from MosaicImage import MosaicImage
 from ImageCollection import ImageCollection
 from Transform import Transform,ChangeTransform
 
-from MMPropertyBrowser import MMPropertyBrowser
-from ASI_Control import ASI_AutoFocus
-from FocusCorrectionPlaneWindow import FocusCorrectionPlaneWindow
+try:
+    from MMPropertyBrowser import MMPropertyBrowser
+    from ASI_Control import ASI_AutoFocus
+    from FocusCorrectionPlaneWindow import FocusCorrectionPlaneWindow
+    from Snap import SnapView
+    from Retake import RetakeView
+except ImportError:
+    logging.warning("Couldn't import MMCorePy. Defaulting to demo mode.")
+
 from NavigationToolBarImproved import NavigationToolbar2Wx_improved as NavBarImproved
 from Settings import (MosaicSettings, CameraSettings,SiftSettings,ChangeCameraSettings, ImageSettings,
                        ChangeImageMetadata, SmartSEMSettings, ChangeSEMSettings, ChannelSettings,
                        ChangeChannelSettings, ChangeSiftSettings, CorrSettings,ChangeCorrSettings,
                       ChangeZstackSettings, ZstackSettings, DirectorySettings, ChangeDirectorySettings, RibbonNumberDialog, MultiRibbonSettings, MapSettingsDialog,
                       SessionSettings)
-
+#########################
+# Deps to ask FC about
+# LXML
+# marshmallow
+# pyyaml
+# configobj
+# validate
+# 
 from configobj import ConfigObj
 from validate import Validator
+#########################
+
+#########################
+# Deps might not be needed for single-ribbon imaging
+#
 import cv2 #MultiRibbons
 from skimage.measure import block_reduce #MultiRibbons
-from Snap import SnapView
-from Retake import RetakeView
+#########################
+
+
 from LeicaAFCView import LeicaAFCView
 from LeicaDMI import LeicaDMI
-from slacker import Slacker
+
+#########################
+# Slacker lets us sent slack messages
+# TODO: fix slack integration, seems hacked in, hardcoded
+#
+try:
+    from slacker import Slacker
+except ImportError:
+    Slacker = None
+    logging.warning("Couldn't import slacker. No slack messages will be posted.")
+
 from SaveThread import file_save_process
 from imgprocessing import make_thumbnail
 import scipy.optimize as opt #softwarea-autofocus
@@ -66,8 +99,7 @@ from Tokens import STOP_TOKEN,BUBBLE_TOKEN
 DEFAULT_SETTINGS_FILE = 'MosaicPlannerSettings.default.cfg'
 SETTINGS_FILE = 'MosaicPlannerSettings.cfg'
 SETTINGS_MODEL_FILE = 'MosaicPlannerSettingsModel.cfg'
-import logging
-logging.getLogger('MosaicPlanner').addHandler(logging.NullHandler())
+
 
 
 class MosaicToolbar(NavBarImproved):
@@ -258,7 +290,7 @@ class MosaicToolbar(NavBarImproved):
         wx.EVT_TOOL(self, self.ON_ROTATE, self.canvas.on_rotate_tool)
         wx.EVT_TOOL(self, self.ON_SNAP, self.canvas.on_snap_tool)
         wx.EVT_TOOL(self, self.ON_CROP, self.canvas.on_crop_tool)
-        wx.EVT_TOOL(self, self.ON_RUN_MULTI, self.canvas.on_run_multi_acq)
+        #wx.EVT_TOOL(self, self.ON_RUN_MULTI, self.canvas.on_run_multi_acq)
         wx.EVT_TOOL(self, self.ON_SOFTWARE_AF, self.canvas.on_software_af_tool)
 
         self.Realize()
@@ -337,14 +369,14 @@ class MosaicPanel(FigureCanvas):
         mosaic_settings = MosaicSettings()
         mosaic_settings.load_settings(config)
         self.MM_config_file = self.cfg['MosaicPlanner']['MM_config_file']
-        print self.MM_config_file
+        print(self.MM_config_file)
 
         #setup the image source
         self.imgSrc=None
         while self.imgSrc is None:
             try:
-                if self.cfg['MosaicPlanner']['demoMode']:
-                    from imageSourceDemo import imageSource
+                if self.cfg['MosaicPlanner']['demo_mode']:
+                    from imageSourceDemo import ImageSource
                 else:
                     from imageSourceMM import ImageSource
 
@@ -380,63 +412,29 @@ class MosaicPanel(FigureCanvas):
 
         self.outdirdict = {}
         self.mapdict = {}
-        self.multiribbon_boolean = self.askMultiribbons()
-        if not self.multiribbon_boolean:
-            self.Ribbon_Num = 1
-            self.directory_settings = DirectorySettings()
-            self.directory_settings.load_settings(config)
-            self.edit_Directory_settings()
-            dictvalue = self.get_output_dir(self.directory_settings)
-            if dictvalue == None:
-                print "line 382"
-                goahead = False
-                while goahead == False:
-                    self.edit_Directory_settings()
-                    print "line 385"
-                    dictvalue = self.get_output_dir(self.directory_settings)
-                    if dictvalue != None:
-                        goahead = True
 
-            print 'Sample_ID:', self.directory_settings.Sample_ID
-            print 'Ribbon_ID:', self.directory_settings.Ribbon_ID
-            print 'Session_ID:', self.directory_settings.Session_ID
-            print 'Map Number:', self.directory_settings.Map_num
-            self.directory_settings.save_settings(config)
-            self.outdirdict['Slot' + str(self.directory_settings.Slot_num)] = dictvalue
-            self.mapdict['Slot' + str(self.directory_settings.Slot_num)] = self.directory_settings.create_directory(config,kind='map')
-
-        else:
-            self.Ribbon_Num = self.get_ribbon_number()
-            self.directory_settings = DirectorySettings()
-            self.directory_settings.load_settings(config)
-            for i in range(self.Ribbon_Num):
+        self.Ribbon_Num = 1
+        self.directory_settings = DirectorySettings()
+        self.directory_settings.load_settings(config)
+        self.edit_Directory_settings()
+        dictvalue = self.get_output_dir(self.directory_settings)
+        if dictvalue == None:
+            goahead = False
+            while goahead == False:
                 self.edit_Directory_settings()
                 dictvalue = self.get_output_dir(self.directory_settings)
-                if dictvalue == None:
-                    goahead = False
-                    while goahead == False:
-                        self.edit_Directory_settings()
-                        dictvalue = self.get_output_dir(self.directory_settings)
-                        if dictvalue != None:
-                            goahead = True
-                self.outdirdict['Slot' + str(self.directory_settings.Slot_num)] = dictvalue
-                self.directory_settings.save_settings(config)
-                self.mapdict['Slot' + str(self.directory_settings.Slot_num)] = self.directory_settings.create_directory(config, kind= 'map')
-        if self.multiribbon_boolean:
-           self.What_toMap()
+                if dictvalue != None:
+                    goahead = True
 
-        self.session = SessionSettings(self.cfg['Directories']['meta_experiment_name'],self.Ribbon_Num,self.outdirdict,self.mapdict)
+        print('Sample_ID:', self.directory_settings.Sample_ID)
+        print('Ribbon_ID:', self.directory_settings.Ribbon_ID)
+        print('Session_ID:', self.directory_settings.Session_ID)
+        print('Map Number:', self.directory_settings.Map_num)
+        self.directory_settings.save_settings(config)
+        self.outdirdict['Slot' + str(self.directory_settings.Slot_num)] = dictvalue
+        self.mapdict['Slot' + str(self.directory_settings.Slot_num)] = self.directory_settings.create_directory(config,kind='map')
 
-
-
-        for key,value in self.outdirdict.iteritems():
-            print "Output directory:",key,value
-            print "Map directory:", key, self.mapdict[key]
-            pointer = self.mapdict[key].split('map')
-        self.session.pointer = pointer[0]
-        print pointer
-        self.session.to_file()
-            # print self.directory_settings
+        # print self.directory_settings
         # load Zstack settings
         self.zstack_settings = ZstackSettings()
         self.zstack_settings.load_settings(config)
@@ -475,18 +473,18 @@ class MosaicPanel(FigureCanvas):
         self.canvas.mpl_connect('button_release_event', self.on_release)
         self.canvas.mpl_connect('key_press_event', self.on_key)
 
-        self.slacker = None
-        if self.cfg['Slack']['slack_token'] is not None:
-            self.slacker = Slacker(self.cfg['Slack']['slack_token'])
-
         if len(self.cfg['LeicaDMI']['port']) > 0:
             self.dmi = LeicaDMI(self.cfg['LeicaDMI']['port'])
         else:
             self.dmi = None
 
+        self._setup_slack_integration()
         self._setup_remote_control()
 
     def _setup_remote_control(self):
+        """ Sets up a remote control interface. See remote.py for
+                available commands.
+        """
         try:
             # TODO: support for other remote control libraries
             from remote import RemoteInterface
@@ -497,6 +495,16 @@ class MosaicPanel(FigureCanvas):
         except Exception as e:
             logging.exception("Failed to set up remote control interface.")
             self.interface = None
+
+    def _setup_slack_integration(self):
+        """ Sets up integration with Slack.
+        # TODO: Move Slack shit out of here.
+        """
+        self.slacker = None
+        if not Slacker:
+            return
+        if self.cfg['Slack']['slack_token'] is not None:
+            self.slacker = Slacker(self.cfg['Slack']['slack_token'])
 
     def _check_sock(self, event):
         """ Checks for commands from remote control interface.
@@ -1025,96 +1033,6 @@ class MosaicPanel(FigureCanvas):
         self.software_autofocus(acquisition_boolean= True)
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
 
-    def on_run_multi_acq(self,poslistpath = None, outdirlist = None, ToImageList = None, event="none"): #MultiRibbons
-        #pick position lists
-        if outdirlist == None:
-            outdirlist =[]
-            keys = sorted(self.outdirdict)
-            for key in keys:
-                 outdirlist.append(self.outdirdict[key])
-            print 'outdirlist:', outdirlist
-            print 'keys', keys
-        if poslistpath == None:
-            poslistpath=[]
-            dlg = MultiRibbonSettings(None, -1,self.Ribbon_Num, keys, title = "Multiribbon Settings",style=wx.OK)
-            ret=dlg.ShowModal()
-            if ret == wx.ID_OK:
-                poslistpath, ToImageList =dlg.GetSettings()
-            dlg.Destroy()
-
-        else:
-            poslistpath = poslistpath
-            ToImageList = ToImageList
-        print "poslistpath:", poslistpath
-        print 'to Image list:', ToImageList
-
-        #load all ribbons as one posList for display
-        for rib in range(self.Ribbon_Num):
-            if ToImageList[rib]:
-                self.posList.add_from_file_JSON(poslistpath[rib])
-                self.posList.rotate_boxes_angle()
-                self.posList.set_frames_visible(True)
-                self.draw()
-            else:
-                pass
-        #print self.posList.mosaic_settings.mx, self.posList.mosaic_settings.my, self.posList.mosaic_settings.overlap
-
-        caption = "about to capture multiple ribbons"
-        dlg = wx.MessageDialog(self,message=caption, style = wx.OK|wx.CANCEL)
-        button_pressed = dlg.ShowModal()
-        if button_pressed == wx.ID_CANCEL:
-            return False
-
-        # self.imgSrc.set_binning(1)
-        # binning=self.imgSrc.get_binning()
-        # numchan,chrom_correction = self.summarize_channel_settings()
-        self.slack_notify("about to image %d Ribbons"%(self.Ribbon_Num))
-
-        # if self.cfg['MosaicPlanner']['hardware_trigger']:
-        #     # iterates over channels/exposure times in appropriate order
-        #     channels = [ch for ch in self.channel_settings.channels if self.channel_settings.usechannels[ch]]
-        #     exp_times = [self.channel_settings.exposure_times[ch] for ch in self.channel_settings.channels if
-        #                  self.channel_settings.usechannels[ch]]
-        #     for k, ch in enumerate(self.channel_settings.channels):
-        #         print 'Channel:', ch
-        #         print 'Exposure:', self.channel_settings.exposure_times[ch]
-        #     for k in range(len(channels)):
-        #         print 'Exposure in order:', exp_times[k]
-        #         print 'Channel in order:', channels[k]
-        #     success = self.imgSrc.setup_hardware_triggering(channels, exp_times)
-        # else:
-        #     success = False
-
-        progress_ribbons = wx.ProgressDialog("A ribbon progress box", "Ribbons remaining", self.Ribbon_Num,
-        style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME)
-
-
-        for rib in range(self.Ribbon_Num): #loop through all ribbons
-            if ToImageList[rib]:
-
-
-                (keep_going, skip1) = progress_ribbons.Update(rib, 'ribbon %d of %d'%(rib,self.Ribbon_Num-1))
-                print 'keep going', keep_going
-                if not keep_going:
-                    break
-            #clear position list
-                print 'Imaging:', ToImageList[rib]
-                self.posList.select_all()
-                self.draw()
-                self.posList.delete_selected()
-                self.draw()
-
-                #load poslist from JSON file
-                self.posList.add_from_file_JSON(poslistpath[rib])
-                self.posList.rotate_boxes_angle()
-                self.posList.set_frames_visible(True)
-                self.draw()
-                self.on_run_acq(outdirlist[rib])
-
-        self.imgSrc.stop_hardware_triggering()
-
-    
-
     def on_run_acq(self,outdir = None,event="none"):
         print "running"
         from SetupAlerts import SetupAlertDialog
@@ -1290,10 +1208,10 @@ class MosaicPanel(FigureCanvas):
             if pos.frameList is not None:
                 self.slack_notify("frame %d"%(j))
 
-            print "acquisition stopped prematurely"
-            print "section %d"%(i)
+            print("acquisition stopped prematurely")
+            print("section %d"%(i))
             if pos.frameList is not None:
-                print "frame %d"%(j)
+                print("frame %d"%(j))
 
         self.dataQueue.put(STOP_TOKEN)
         self.saveProcess.join()
