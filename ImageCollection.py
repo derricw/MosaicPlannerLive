@@ -214,7 +214,7 @@ class ImageCollection():
             (thedata,bbox)=self.imageSource.take_image(x,y)
             if thedata.dtype == np.uint16:
                 print "converting"
-                maxval=self.imageSource.get_max_pixel_value()
+                #maxval=self.imageSource.get_max_pixel_value()
                 thedata=self.lut_convert16as8bit(thedata,0,60000)
             
         except:
@@ -228,6 +228,18 @@ class ImageCollection():
         #add this image to the collection
         theimage=self.add_image(thedata,bbox)
         return theimage
+
+    def add_image_to_path(self,x,y,path):
+        try:
+            (data,bbox) = self.imageSource.take_image(x,y)
+            # if data.dtype == np.uint16:
+            #     maxval = self.imageSource.get_max_pixel_value()
+            #     data = self.lut_convert16as8bit(data,0,60000)
+            imsave(path, data)
+            return data
+        except Exception as e:
+            print("Failed to add image to path: {}".format(e))
+
         
         
     def get_cutout_from_source(self,box):

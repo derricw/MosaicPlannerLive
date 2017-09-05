@@ -20,6 +20,7 @@ import wx
 import os
 import json
 import marshmallow as mm
+import yaml
 
 class DirectorySettings():
 
@@ -66,6 +67,7 @@ class DirectorySettings():
             else:
                 # return map_folder
                 cfg['MosaicPlanner']['default_imagepath'] = map_folder
+            return map_folder
         elif kind == 'data':
             data_folder = os.path.join(root,self.Sample_ID,'raw','data','Ribbon%04d'%self.Ribbon_ID,'session%02d'%self.Session_ID)
             if not os.path.exists(data_folder):
@@ -93,13 +95,38 @@ class DirectorySettings():
             return None
 
 
+class SessionSettings():
+    def __init__(self,meta_experiment_name = None,Ribbon_num = None,outdirdict = None,mapdirdict = None,arrayfiledict = None,channel_settings = None,pointer = None,**kwargs):
+        self.meta_experiment_name = meta_experiment_name
+        self.Ribbon_num = Ribbon_num
+        self.channel_settings = channel_settings
+        self.outdirdict = outdirdict
+        self.mapdirdict = mapdirdict
+        self.arrayfiledict = arrayfiledict
+        self.pointer = pointer
+
+    def to_file(self,filetype = '.yaml'):
+        data = {'Meta Experiment' : self.meta_experiment_name,
+                    'Ribbon Number': self.Ribbon_num,
+                    'Data Filepaths' : self.outdirdict,
+                    'Map Directories': self.mapdirdict,}
+        filename = self.pointer + 'session.yml'
+        with open(filename,'w') as outfile:
+            yaml.dump(data,outfile,default_flow_style = False)
+        outfile.close()
+
+
+
+
+
+
 class RibbonNumberDialog(wx.Dialog):
     def __init__(self,parent,id,style,title = "Enter Number of Ribbons"):
         wx.Dialog.__init__(self,parent,id,title,style = wx.DEFAULT_DIALOG_STYLE, size = (200,75))
         vbox = wx.BoxSizer(wx.VERTICAL)
 
         self.RibbonNum_txt = wx.StaticText(self,label = "Number of Ribbons:")
-        self.RibbonNum_IntCtrl = wx.lib.intctrl.IntCtrl(self,value = 1, min = 1, max = None, allow_none = False)
+        self.RibbonNum_IntCtrl = wx.lib.intctrl.IntCtrl(self,value = 1, min = 1, max = 8, allow_none = False)
 
         ok_button = wx.Button(self,wx.ID_OK,'OK')
         cancel_button = wx.Button(self,wx.ID_CANCEL,'Cancel')
@@ -117,6 +144,34 @@ class RibbonNumberDialog(wx.Dialog):
         val = self.RibbonNum_IntCtrl.GetValue()
         return val
 
+class MapSettingsDialog(wx.Dialog):
+    def __init__(self,parent,id,mapdict,title = "Choose Ribbon to Map:"):
+        wx.Dialog.__init__(self,parent,id,title,style = wx.DEFAULT_DIALOG_STYLE, size = (300,80))
+        vbox = wx.BoxSizer(wx.VERTICAL)
+
+        self.mapdict = mapdict
+        self.mappaths = []
+        for key,value in self.mapdict.iteritems():
+            self.mappaths.append(self.mapdict[key])
+        self.mapchoice_combobox = wx.ComboBox(self,-1, pos=(170, 170), size=(300, -1), choices= self.mappaths,value = self.mappaths[0], style=wx.CB_READONLY)
+        ok_button = wx.Button(self,wx.ID_OK)
+        hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+
+
+
+        # hbox1.Add(self.mapchoice_txt)
+        hbox1.Add(self.mapchoice_combobox)
+        hbox2.Add(ok_button,0,wx.CENTER)
+        vbox.Add(hbox1)
+        vbox.Add(hbox2)
+
+        self.SetSizer(vbox)
+        self.Centre()
+
+    def GetValue(self):
+        mapchoice = self.mapchoice_combobox.GetValue()
+        return mapchoice
 
 
 
@@ -794,7 +849,7 @@ class ChangeSEMSettings(wx.Dialog):
 
 class MultiRibbonSettings(wx.Dialog): #MultiRibbons
     """dialog for setting multiribbon aquisition"""
-    def __init__(self, parent, id, ribbon_number,slot_labels, title, settings,style):
+    def __init__(self, parent, id, ribbon_number,slot_labels, title,style):
         wx.Dialog.__init__(self, parent, id, title,style=wx.DEFAULT_DIALOG_STYLE, size=(1000, 300))
 
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -836,7 +891,6 @@ class MultiRibbonSettings(wx.Dialog): #MultiRibbons
             #pathway[i]=self.RibbonFilePath[i].GetPath()
             newpath=self.RibbonFilePath[i].GetPath()
             pathway.append(newpath)
-            print 'new path length:', len(newpath)
             if len(newpath) == 0:
                 self.ToImageList.append(False)
             else:
