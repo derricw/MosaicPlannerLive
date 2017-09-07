@@ -37,13 +37,15 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 import LiveMode
-from PositionList import posList
+from PositionList import PosList
 from MyLasso import MyLasso
 from MosaicImage import MosaicImage
 from ImageCollection import ImageCollection
 from Transform import Transform,ChangeTransform
 
 try:
+    # these all require MMCore.py
+    # might need non-uM versions of these for demo mode?
     from MMPropertyBrowser import MMPropertyBrowser
     from ASI_Control import ASI_AutoFocus
     from FocusCorrectionPlaneWindow import FocusCorrectionPlaneWindow
@@ -71,10 +73,9 @@ from validate import Validator
 #########################
 
 #########################
-# Deps might not be needed for single-ribbon imaging
+# Might not be needed?
 #
-import cv2 #MultiRibbons
-from skimage.measure import block_reduce #MultiRibbons
+import cv2 # SW autofocus
 #########################
 
 
@@ -426,6 +427,8 @@ class MosaicPanel(FigureCanvas):
                 if dictvalue != None:
                     goahead = True
 
+        
+
         print('Sample_ID:', self.directory_settings.Sample_ID)
         print('Ribbon_ID:', self.directory_settings.Ribbon_ID)
         print('Session_ID:', self.directory_settings.Session_ID)
@@ -442,20 +445,20 @@ class MosaicPanel(FigureCanvas):
         self.retakeView = None
 
         #setup a blank position list
-        self.posList=posList(self.subplot,mosaic_settings,self.camera_settings)
+        self.posList=PosList(self.subplot,mosaic_settings,self.camera_settings)
         #start with no MosaicImage
         self.mosaicImage=None
         #start with relative_motion on, so that keypress calls shift_selected_curved() of posList
         self.relative_motion = True
 
-        self.focusCorrectionList = posList(self.subplot)
+        self.focusCorrectionList = PosList(self.subplot)
 
         #read saved position list from configuration file
         pos_list_string = self.cfg['MosaicPlanner']['focal_pos_list_pickle']
         #if the saved list is not default blank.. add it to current list
-        print "pos_list",pos_list_string
+        print("pos_list",pos_list_string)
         if len(pos_list_string)>0:
-            print "loading saved position list"
+            print("loading saved position list")
             pl = pickle.loads(pos_list_string)
             self.focusCorrectionList.add_from_posList(pl)
         x,y,z = self.focusCorrectionList.getXYZ()
@@ -483,7 +486,8 @@ class MosaicPanel(FigureCanvas):
 
     def _setup_remote_control(self):
         """ Sets up a remote control interface. See remote.py for
-                available commands.
+                available commands.  Will process one request every
+                200 ms.
         """
         try:
             # TODO: support for other remote control libraries
@@ -512,6 +516,8 @@ class MosaicPanel(FigureCanvas):
         self.interface._check_rep()
 
     def setZPosition(self,position, wait=True):
+        """ Sets objective height.
+        """
         focus = self.imgSrc.objective
         currentpos = self.imgSrc.mmc.getPosition(focus)
         self.imgSrc.mmc.setPosition(focus,position)
@@ -519,22 +525,13 @@ class MosaicPanel(FigureCanvas):
             self.imgSrc.mmc.waitForDevice(focus)
 
     def getZPosition(self):
-        focus = self.imgSrc.mmc.getFocusDevice()
+        focus = self.imgSrc.objective
         currentpos = self.imgSrc.mmc.getPosition(focus)
         return currentpos
 
 
-
-    def askMultiribbons(self):
-        dlg = wx.MessageDialog(self,message = "Are you imaging multiple ribbons?",style = wx.YES|wx.NO)
-        button_pressed = dlg.ShowModal()
-        if button_pressed == wx.ID_YES:
-            return True
-        else:
-            return False
-
     def grabGrid(self,pos=None,folder="",n=3):
-        """ Grabs a (2n+1)^2 grid of images around `xytuple` and saves them to
+        """ Grabs a nxn grid of images around `xytuple` and saves them to
                 filepath.
         """
         assert(n%2==1)
@@ -563,16 +560,6 @@ class MosaicPanel(FigureCanvas):
                     t0 = time.clock()
                     self.interface.publish(make_thumbnail(img))
                     print(time.clock()-t0)
-
-        # self.imgCollection=ImageCollection(rootpath=rootPath,imageSource=imgSrc,axis=self.axis)
-        # assert(type(xytuple) == tuple)
-        # x,y = xytuple[0],xytuple[1]
-        # (fw,fh)=self.mosaicImage.imgCollection.get_image_size_um()
-        # for i in range(-n,n+1):
-        #     for j in range(-n,n+1):
-        #         filename = "%03d_%03d.tif"%(i,j)
-        #         mypath = os.path.join(folderpath,filename)
-        #         self.mosaicImage.imgCollection.add_image_to_path(x+(j*fw),y+(i*fh),mypath)
 
 
     def What_toMap(self):
@@ -653,6 +640,7 @@ class MosaicPanel(FigureCanvas):
         (channelname, width, height, 1, 1, ScaleFactorX, ScaleFactorY, exp_time))
         f.write("XPositions\tYPositions\tFocusPositions\n")
         f.write("%s\t%s\t%s\n" %(xpos, ypos, zpos))
+        f.close()
 
     def write_session_metadata(self,outdir):
         filename=os.path.join(outdir,'session_metadata.txt')
@@ -673,8 +661,8 @@ class MosaicPanel(FigureCanvas):
 
         f.write("Meta Experiment name:\t%s" %(self.cfg['Directories']['meta_experiment_name']))
 
-
         f.write("Imaged on:" + "\t" + self.cfg['MosaicPlanner']['microscope_name'])
+        f.close()
 
 
     def autofocus_loop(self,hold_focus,wait,sleep):
@@ -851,7 +839,38 @@ class MosaicPanel(FigureCanvas):
                     chrom_correction = True
         return numchan,chrom_correction
 
+    def load_channel_settings(self, settings):
+        """ Loads channel settings from ChannelSettings object,
+            a dict, or a file path.
 
+            #Once I figure out which of these is most
+                relevant i should eliminate the other
+                options.
+
+            args:
+                settings (ChannelSettings, dict, str): settings to load.
+        """
+        if isinstance(settings, ChannelSettings):
+            pass
+        elif isinstance(settings, dict):
+            settings = ChannelSettings(**settings)
+        elif isinstance(settings, str):
+            with open(settings, 'r') as f:
+                settings_dict = yaml.load(f)
+                settings = ChannelSettings(**settings_dict)
+        else:
+            raise NotImplementedError("Only dict, path or ChannelSettings for now.")
+        self.channel_settings = settings
+        # DO WE NEED TO SET EXPOSURES HERE?
+        return self.channel_settings
+
+    def load_position_list(self, position_list):
+        if isinstance(position_list, PosList):
+            pass
+        elif isinstance(position_list, str):
+            # file
+            #position_list = 
+            pass
 
     def summarize_autofocus_settings(self):
         auto_sleep = self.cfg['Mosaic Planner']['autofocus_sleep']
@@ -943,8 +962,6 @@ class MosaicPanel(FigureCanvas):
         numFrames,numSections = self.setup_progress_bar()
         hold_focus = not (zstack_settings.zstack_flag or chrome_correction)
 
-
-
         # starting with cycling through positions
         goahead = True
         #loop over positions
@@ -993,6 +1010,8 @@ class MosaicPanel(FigureCanvas):
 
 
     def slack_notify(self,message,notify=False):
+        """ TODO: move this out of here, remove hard-coded scope names...
+        """
         if self.slacker is not None:
             microscope = self.cfg['MosaicPlanner']['microscope_name']
             if 'Jarvis'in microscope:
@@ -1034,8 +1053,10 @@ class MosaicPanel(FigureCanvas):
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
 
     def on_run_acq(self,outdir = None,event="none"):
+        """ Main acquisition loop.
+        """
         print "running"
-        from SetupAlerts import SetupAlertDialog
+        #from SetupAlerts import SetupAlertDialog
 
         #dlg = SetupAlertDialog(self.cfg['smtp'])
         #dlg.setModal(True)
@@ -1050,8 +1071,7 @@ class MosaicPanel(FigureCanvas):
         binning=self.imgSrc.get_binning()
         numchan,chrom_correction = self.summarize_channel_settings()
 
-        self.slack_notify("about to image %d sections"%len(self.posList.slicePositions))
-
+        #self.slack_notify("about to image %d sections"%len(self.posList.slicePositions))
 
         Caption = "about to capture %d sections, binning is %dx%d, numchannel is %d"%(len(self.posList.slicePositions),binning,binning,numchan)
         dlg = wx.MessageDialog(self,message=Caption, style = wx.OK|wx.CANCEL)
@@ -1061,12 +1081,10 @@ class MosaicPanel(FigureCanvas):
             return False
 
 
+        # DW: What is going on here?
+        for key,value in self.outdirdict.iteritems():
+            outdir = self.outdirdict[key]
 
-        if not self.multiribbon_boolean:
-            for key,value in self.outdirdict.iteritems():
-                outdir = self.outdirdict[key]
-        else:
-            outdir = outdir
         if outdir is None:
             return None
 
@@ -1076,20 +1094,7 @@ class MosaicPanel(FigureCanvas):
 
             self.write_session_metadata(value)
 
-        if self.multiribbon_boolean:
-            if len(self.posList.slicePositions) < 2:
-                initial_focus_slice = 0
-            else:
-                initial_focus_slice = 1
-
-            print 'length slice pos', len(self.posList.slicePositions)
-            if self.imgSrc.is_hardware_triggering():
-                self.imgSrc.stop_hardware_triggering()
-
-            self.imgSrc.move_safe_and_focus(self.posList.slicePositions[initial_focus_slice].x,self.posList.slicePositions[initial_focus_slice].y)
-            self.software_autofocus(acquisition_boolean=False)
-        else:
-            self.move_safe_to_start()
+        self.move_safe_to_start()
 
         self.dataQueue = mp.Queue()
         self.messageQueue = mp.Queue()
@@ -1312,6 +1317,7 @@ class MosaicPanel(FigureCanvas):
     def launch_LeicaAFC(self,event=None):
         if self.LeicaAFCView is None:
             self.LeicaAFCView = LeicaAFCView(self.imgSrc,self.cfg['LeicaDMI']['port'])
+
     def launch_snap(self, event=None):
         if self.snapView is None:
             print 'Binning is', self.imgSrc.get_binning()
@@ -1319,6 +1325,7 @@ class MosaicPanel(FigureCanvas):
             self.snapView.changedExposureTimes.connect(self.getSnapExposures)
         self.imgSrc.set_binning(1)
         self.snapView.show()
+
     def getSnapExposures(self, event=None):
         self.channel_settings.exposure_times = self.snapView.getExposureTimes()
 

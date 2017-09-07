@@ -67,7 +67,7 @@ class posListSchema(mm.Schema):
     dosort = mm.fields.Bool(required=False,default=True)
     numberDisplaySettings = mm.fields.Nested(NumberDisplaySettingsSchema)
 
-class posList():
+class PosList():
     """class for holding, altering, and plotting the position list"""
     def __init__(self,axis,mosaic_settings=MosaicSettings(),camera_settings=CameraSettings(),
                  numberDisplaySettings=NumberDisplaySettings(),dosort=True):
@@ -1011,7 +1011,7 @@ class posList():
             pos.destroy()
             del pos
 
-
+posList = PosList
 
 class slicePosition():
     """class which contains information about a single position in the position list, and is responsible for keeping 

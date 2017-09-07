@@ -83,13 +83,6 @@ class DirectorySettings():
                     box.ShowModal()
                     box.Destroy()
                     return None
-        elif kind == 'multi_map':
-            map_folder = os.path.join(root,self.Sample_ID,'raw','map','multi_ribbon_round','map%02d'%self.Map_num)
-            if not os.path.exists(map_folder):
-                os.makedirs(map_folder)
-                cfg['MosaicPlanner']['default_imagepath'] = map_folder
-            else:
-                cfg['MosaicPlanner']['default_imagepath'] = map_folder
         else:
             dlg = wx.MessageBox(self,caption = 'Error',message = "Directory must be either \'map\' or \'data\' \n Aborting Acquisition")
             return None
@@ -114,7 +107,6 @@ class SessionSettings():
         with open(filename,'w') as outfile:
             yaml.dump(data,outfile,default_flow_style = False)
         outfile.close()
-
 
 
 
@@ -147,6 +139,8 @@ class RibbonNumberDialog(wx.Dialog):
         return val
 
 class MapSettingsDialog(wx.Dialog):
+    """ #DCW: Is this for multi-ribbon? Do we need it anymore?
+    """
     def __init__(self,parent,id,mapdict,title = "Choose Ribbon to Map:"):
         wx.Dialog.__init__(self,parent,id,title,style = wx.DEFAULT_DIALOG_STYLE, size = (300,80))
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -520,8 +514,8 @@ class CameraSettings():
 
 class ChannelSettings():
     """simple struct for containing the parameters for the microscope"""
-    def __init__(self,channels,exposure_times=dict([]),zoffsets=dict([]),
-                 usechannels=dict([]),prot_names=dict([]),map_chan=None,
+    def __init__(self,channels,exposure_times={},zoffsets={},
+                 usechannels={},prot_names={},map_chan=None,
                  def_exposure=100,def_offset=0.0,):
         #def_exposure is default exposure time in msec
        

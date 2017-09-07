@@ -104,6 +104,12 @@ class RemoteInterface(Publisher):
         return pos_z
 
     def set_objective_z(self, pos_z, speed=None):
+        """ Sets the Z position of the objective.
+
+            args:
+                pos_z (float): target Z position
+                speed (Optional[float]): custom speed for the move
+        """
         if speed:
             old_speed = self.get_objective_property("Speed")
             self.set_objective_property("Speed", speed)
@@ -124,6 +130,8 @@ class RemoteInterface(Publisher):
             self.set_objective_property("Speed", old_speed)
 
     def get_objective_property_names(self):
+        """ Gets a list of objective property names.
+        """
         # check that it has that property
         objective = self.parent.imgSrc.objective
         return self.parent.imgSrc.mmc.getDevicePropertyNames(objective)
@@ -182,6 +190,12 @@ class RemoteInterface(Publisher):
         with open(session_file, 'r') as f:
             data = yaml.load(f)
         self.set_current_session(data)
+
+    def load_channel_settings(self, settings):
+        self.parent.load_channel_settings(settings)
+
+    def load_position_list(self, position_list):
+        self.parent.load_position_list(position_list)
 
     def on_run_multi(self):
         logging.info('preparing to image multiple ribbons')

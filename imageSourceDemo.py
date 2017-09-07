@@ -22,6 +22,24 @@ class ImageSource():
       self.offset = 0
       self.use_focus_plane = False
 
+    @property
+    def objective(self):
+        """ The microscope objective device.
+        """
+        return None
+
+    @property
+    def stage(self):
+        """ The microscope XY stage.
+        """
+        return None
+
+    @property
+    def hw_autofocus(self):
+        """ The microscope HW autofocus.
+        """
+        return None
+
     def define_focal_plane(self,points):
         if points.shape[1]>3:
             self.plane_tuple = self.planeFit(points)
@@ -173,6 +191,7 @@ class ImageSource():
         print "todo get some real metadata"
         metadata=None
         return data,bbox
+
     def set_xy(self,x,y,use_focus_plane=False):
         flipx,flipy = self.get_xy_flip()
 
@@ -196,6 +215,7 @@ class ImageSource():
 
     def get_xy_flip(self):
         return False,False
+
     def get_xy(self):
         #NEED TO IMPLEMENT IF NOT MICROMANAGER
 
@@ -223,11 +243,12 @@ class ImageSource():
         
     def get_pixel_size(self):
         #NEED TO IMPLEMENT IF NOT MICROMANAGER
-        return .1
+        return 0.1
 
     def make_random_image(self):
         #return np.random.random(self.get_sensor_size())
         return np.random.randint(0,2**16 - 1,self.get_sensor_size(),np.uint16)
+
     def get_image(self,wait=True):
         return self.make_random_image()
 
@@ -297,10 +318,12 @@ class ImageSource():
         
     def take_best_of_stack(self):
         print "need to implement take best of stack"
-        return self.snap_image()  
+        return self.snap_image()
+
     def meets_focus_spec(data):
         print "need to implement focus spec check"
         return True
+
     def get_image_flip(self):
         return (False,False,True)
 
