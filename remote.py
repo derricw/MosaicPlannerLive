@@ -194,35 +194,25 @@ class RemoteInterface(Publisher):
     def load_channel_settings(self, settings):
         self.parent.load_channel_settings(settings)
 
+    def load_directory_settings(self, settings=None):
+        s = self.parent.load_directory_settings(settings)
+        return s.__dict__
+
     def load_position_list(self, position_list):
         self.parent.load_position_list(position_list)
 
-    def on_run_multi(self):
-        logging.info('preparing to image multiple ribbons')
-        outdirlist = self.get_directory_settings()
-        # ToImageList = len(outdirlist)*[True]
-
-        poslistpath, ToImageList = self.get_position_list_settings()
-        self.parent.on_run_multi_acq(poslistpath,outdirlist,ToImageList)
+    def clear_position_list(self):
+        self.parent.clear_position_list()
 
     def get_directory_settings(self):
         outdirdict = self.parent.outdirdict
+        print(outdirdict)
         outdirlist =[]
         keys = sorted(outdirdict)
         for key in keys:
             outdirlist.append(outdirdict[key])
         return outdirlist
 
-    def get_position_list_settings(self):
-        pass
-        # #will return a list of position lists to load into on run multi
-        # keys = sorted(self.parent.outdirdict)
-        # dlg = MultiRibbonSettings(None, -1, self.parent.Ribbon_Num, keys, title = "Multiribbon Settings",style=wx.OK)
-        # ret=dlg.ShowModal()
-        # if ret == wx.ID_OK:
-        #     poslistpath, ToImageList =dlg.GetSettings()
-        # dlg.Destroy()
-        # return poslistpath, ToImageList
 
     def sample_nearby(self, pos=None, folder="", size=3):
         """ Samples a grid of images and saves them to a specified folder.

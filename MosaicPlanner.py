@@ -154,7 +154,7 @@ class MosaicToolbar(NavBarImproved):
     ON_RUN = wx.NewId()
     ON_SNAP = wx.NewId()
     ON_CROP = wx.NewId()
-    ON_RUN_MULTI = wx.NewId() #MultiRibbons
+    #ON_RUN_MULTI = wx.NewId() #MultiRibbons
     ON_SOFTWARE_AF = wx.NewId()
 
 
@@ -192,7 +192,7 @@ class MosaicToolbar(NavBarImproved):
         batmanBmp     = wx.Image('icons/new/batman.png',   wx.BITMAP_TYPE_PNG).ConvertToBitmap()
         activateBmp   = wx.Image('icons/activate-icon.png',wx.BITMAP_TYPE_PNG).ConvertToBitmap()
         #mosaicBmp     = wx.Image('icons/new/mosaic_camera.png', wx.BITMAP_TYPE_PNG).ConvertToBitmap()
-        checkBmp     = wx.Image('icons/new/1446777170_Check.png',wx.BITMAP_TYPE_PNG).ConvertToBitmap() #MultiRibbons
+        #checkBmp     = wx.Image('icons/new/1446777170_Check.png',wx.BITMAP_TYPE_PNG).ConvertToBitmap() #MultiRibbons
 
         self.DeleteTool(self.wx_ids['Subplots']) # batman - what is this? add comment above it?
 
@@ -231,7 +231,7 @@ class MosaicToolbar(NavBarImproved):
         self.gridTool=self.AddCheckTool(self.ON_GRID,gridBmp,wx.NullBitmap,'toggle show frames')
         self.rotateTool=self.AddCheckTool(self.ON_ROTATE,rotateBmp,wx.NullBitmap,'toggle rotate boxes')
         self.runAcqTool=self.AddSimpleTool(self.ON_RUN,batmanBmp,'Acquire AT Data','run_tool')
-        self.runMultiAcqTool=self.AddSimpleTool(self.ON_RUN_MULTI,checkBmp,'MultiRibbons','run_multi_tool') #MultiRibbons
+        #self.runMultiAcqTool=self.AddSimpleTool(self.ON_RUN_MULTI,checkBmp,'MultiRibbons','run_multi_tool') #MultiRibbons
 
         #setup the controls for the mosaic
         self.showMosaicCheck = wx.CheckBox(self)
@@ -348,6 +348,7 @@ class MosaicPanel(FigureCanvas):
     """
     def __init__(self, parent, config, **kwargs):
         """keyword the same as standard init function for a FigureCanvas"""
+        
         self.figure = Figure(figsize=(5, 9))
         FigureCanvas.__init__(self, parent, -1, self.figure, **kwargs)
         self.canvas = self.figure.canvas
@@ -376,22 +377,15 @@ class MosaicPanel(FigureCanvas):
         self.imgSrc=None
         while self.imgSrc is None:
             try:
-                if self.cfg['MosaicPlanner']['demo_mode']:
-                    from imageSourceDemo import ImageSource
-                else:
-                    from imageSourceMM import ImageSource
-
-                self.imgSrc=ImageSource(self.MM_config_file,
-                                        MasterArduinoPort=self.cfg['MMArduino']['port'],
-                                        interframe_time=self.cfg['MMArduino']['interframe_time'],
-                                        filtswitch = self.cfg['MosaicPlanner']['filter_switch'])
+                self.load_micromanager_config(self.MM_config_file)
             except:
                 traceback.print_exc(file=sys.stdout)
                 dlg = wx.MessageBox("Error Loading Micromanager\n check scope and re-select config file","MM Error")
                 self.edit_MManager_config()
 
+        # DW: WHAT IS GOING ON HERE??
         channels=self.imgSrc.get_channels()
-        self.channel_settings=ChannelSettings(self.imgSrc.get_channels())
+        self.channel_settings=ChannelSettings(channels)
         self.channel_settings.load_settings(config)
         self.imgSrc.set_channel(self.channel_settings.map_chan)
         map_chan=self.channel_settings.map_chan
@@ -417,26 +411,24 @@ class MosaicPanel(FigureCanvas):
         self.Ribbon_Num = 1
         self.directory_settings = DirectorySettings()
         self.directory_settings.load_settings(config)
-        self.edit_Directory_settings()
-        dictvalue = self.get_output_dir(self.directory_settings)
-        if dictvalue == None:
-            goahead = False
-            while goahead == False:
-                self.edit_Directory_settings()
-                dictvalue = self.get_output_dir(self.directory_settings)
-                if dictvalue != None:
-                    goahead = True
 
-        
+        # DW, we don't want to do this unless we have to.
+        # self.edit_Directory_settings()
+        # dictvalue = self.get_output_dir(self.directory_settings)
+        # if dictvalue == None:
+        #     goahead = False
+        #     while goahead == False:
+        #         self.edit_Directory_settings()
+        #         dictvalue = self.get_output_dir(self.directory_settings)
+        #         if dictvalue != None:
+        #             goahead = True
 
         print('Sample_ID:', self.directory_settings.Sample_ID)
         print('Ribbon_ID:', self.directory_settings.Ribbon_ID)
         print('Session_ID:', self.directory_settings.Session_ID)
         print('Map Number:', self.directory_settings.Map_num)
-        self.directory_settings.save_settings(config)
-        self.outdirdict['Slot' + str(self.directory_settings.Slot_num)] = dictvalue
-        self.mapdict['Slot' + str(self.directory_settings.Slot_num)] = self.directory_settings.create_directory(config,kind='map')
-
+        #self.directory_settings.save_settings(config)
+        
         # print self.directory_settings
         # load Zstack settings
         self.zstack_settings = ZstackSettings()
@@ -511,7 +503,7 @@ class MosaicPanel(FigureCanvas):
             self.slacker = Slacker(self.cfg['Slack']['slack_token'])
 
     def _check_sock(self, event):
-        """ Checks for commands from remote control interface.
+        """ Checks for commands from remote control interface. Called every 200ms.
         """
         self.interface._check_rep()
 
@@ -585,47 +577,40 @@ class MosaicPanel(FigureCanvas):
         return Ribbon_Num
 
     def handle_close(self,evt=None):
-        print "handling close"
-        #if not self.mosaicImage == None:
-        #    self.mosaicImage.cursor_timer.cancel()
+        print("handling close")
         self.imgSrc.stopSequenceAcquisition()
         self.imgSrc.shutdown()
+
+    def load_micromanager_config(self, config_path):
+        """ Loads a micromanager config file.  Releases current MM instance
+                if necessary.
+        """
+        if self.imgSrc:
+            self.imgSrc.shutdown()
+        if self.cfg['MosaicPlanner']['demo_mode']:
+            from imageSourceDemo import ImageSource
+            logging.info("Loading MM config @ {} in demo mode.".format(config_path))
+        else:
+            from imageSourceMM import ImageSource
+            logging.info("Loading MM config @ {}".format(config_path))
+
+        self.imgSrc=ImageSource(config_path,
+                                MasterArduinoPort=self.cfg['MMArduino']['port'],
+                                interframe_time=self.cfg['MMArduino']['interframe_time'],
+                                filtswitch = self.cfg['MosaicPlanner']['filter_switch'])
+        logging.debug("Image Source loaded successfully!")
+        # DO WE NEED TO FIDDLE WITH CHANNEL SETTINGS HERE LIKE THEY DO IN THE INIT?
 
     def on_load(self,rootPath):
         self.rootPath = rootPath
         print "transpose toggle state",self.imgSrc.transpose_xy
         if self.mosaicImage != None:
-            self.posList.select_all()
-            self.posList.delete_selected()
-            self.subplot.clear()
-            self.posone_plot.clear()
-            self.postwo_plot.clear()
-
-
+            self.clear_position_list()
             self.mosaicImage = None
-
+        print("Root path: {}".format(self.rootPath))
         self.mosaicImage=MosaicImage(self.subplot,self.posone_plot,self.postwo_plot,self.corrplot,self.imgSrc,rootPath,figure=self.figure)
         self.on_crop_tool()
         self.draw()
-
-    def on_load_new(self):
-        """##################################
-        method will create new mosaic image object to clear/load matplotlib canvas
-        enabling user to create new map/image pathways without having to close/restart program
-        will be called by an icon in ZVIselectframe
-
-        will need:
-        1)GUI to pick new sample data/identifiers:
-            call change directory settings?
-            set mutliribbon boolean to true
-            set ribbon number to ribbon number + 1
-            append info to output dir
-        2) set new mosaic image object to whatever these settings determined in 1 are
-            similar to on load method above except without the transpose xy line
-
-
-        ##################################"""
-
 
     def write_slice_metadata(self,filename,ch,xpos,ypos,zpos):
         f = open(filename, 'w')
@@ -733,7 +718,7 @@ class MosaicPanel(FigureCanvas):
                 for k,ch in enumerate(self.channel_settings.channels):
                     #print datetime.datetime.now().time()," start channel",ch, " zplane", zplane
                     prot_name=self.channel_settings.prot_names[ch]
-                    path=os.path.join(outdir,prot_name)
+                    path=os.path.join(outdir, prot_name)
                     if self.channel_settings.usechannels[ch]:
                         #ti = time.clock()*1000
                         #print time.clock(),'start'
@@ -864,6 +849,37 @@ class MosaicPanel(FigureCanvas):
         # DO WE NEED TO SET EXPOSURES HERE?
         return self.channel_settings
 
+    def load_directory_settings(self, settings=None):
+        """ Loads directory settings from DirectorySettings object,
+            a dict, or a file path.
+
+            #Once I figure out which of these is most
+                relevant i should eliminate the other
+                options.
+
+            args:
+                settings (DirectorySettings, dict, str): settings to load.
+        """
+        if isinstance(settings, DirectorySettings):
+            pass
+        elif isinstance(settings, dict):
+            settings = DirectorySettings(**settings)
+        elif isinstance(settings, str):
+            with open(settings, 'r') as f:
+                settings_dict = yaml.load(f)
+                settings = DirectorySettings(**settings_dict)
+        elif settings is None:
+            #load from config
+            settings = DirectorySettings()
+            settings.load_settings(self.cfg)
+        else:
+            raise NotImplementedError("Only dict, path or DirectorySettings for now.")
+        self.directory_settings = settings
+        #print settings
+        # DO WE NEED TO SET EXPOSURES HERE?
+        # WHAT ABOUT UPDATE UI?
+        return self.directory_settings
+
     def load_position_list(self, position_list):
         if isinstance(position_list, PosList):
             pass
@@ -871,6 +887,15 @@ class MosaicPanel(FigureCanvas):
             # file
             #position_list = 
             pass
+
+    def clear_position_list(self):
+        """ Clears the current position list.
+        """
+        self.posList.select_all()
+        self.posList.delete_selected()
+        self.subplot.clear()
+        self.posone_plot.clear()
+        self.postwo_plot.clear()
 
     def summarize_autofocus_settings(self):
         auto_sleep = self.cfg['Mosaic Planner']['autofocus_sleep']
@@ -897,6 +922,7 @@ class MosaicPanel(FigureCanvas):
                 if not currpos.activated:
                     break
             wx.Yield()
+
     def setup_progress_bar(self):
         hasFrameList = self.posList.slicePositions[0].frameList is not None
         numSections = len(self.posList.slicePositions)
@@ -912,7 +938,7 @@ class MosaicPanel(FigureCanvas):
         return numFrames,numSections
 
     def get_output_dir(self,directory_settings):
-        assert(isinstance(directory_settings,DirectorySettings))
+        assert(isinstance(directory_settings, DirectorySettings))
         #gets output directory for session
 
         cfg = self.cfg
@@ -952,7 +978,7 @@ class MosaicPanel(FigureCanvas):
 
         assert(isinstance(zstack_settings, ZstackSettings))
         assert(isinstance(channel_settings, ChannelSettings))
-        assert(isinstance(pos_list,posList))
+        assert(isinstance(pos_list,PosList))
         assert(type(autofocus_settings == dict))
         assert(type(acquisition_settings == dict))
         outdir = self.outdirdict[sample_information.Ribbon_ID]
@@ -1001,7 +1027,7 @@ class MosaicPanel(FigureCanvas):
 
         self.dataQueue.put(STOP_TOKEN)
         self.saveProcess.join()
-        print "save process ended"
+        print("save process ended")
         self.progress.Destroy()
         self.imgSrc.set_binning(2)
         if self.cfg['MosaicPlanner']['hardware_trigger']:
@@ -1046,10 +1072,10 @@ class MosaicPanel(FigureCanvas):
 
     def move_to_initial_and_focus(self,x,y):
         self.imgSrc.move_stage(x,y)
-        stg = self.imgSrc.mmc.getXYStageDevice()
+        stg = self.imgSrc.mmc.stage
         self.imgSrc.mmc.waitForDevice(stg)
         # self.imgSrc.stop_hardware_triggering()
-        self.software_autofocus(acquisition_boolean= True)
+        self.software_autofocus(acquisition_boolean=True)
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
 
     def on_run_acq(self,outdir = None,event="none"):
@@ -1106,9 +1132,10 @@ class MosaicPanel(FigureCanvas):
         'ScaleFactorY'   : self.imgSrc.get_pixel_size(),
         'exp_time'       : self.channel_settings.exposure_times,
         }
-        ssh_opts = dict(self.cfg['SSH'])
-        ssh_opts['mount_point']=self.lookup_mountpoint(outdir)
-        self.saveProcess =  mp.Process(target=file_save_process,args=(self.dataQueue, self.messageQueue, metadata_dictionary, ssh_opts))
+        # DW: lets remove hard-coded SSH stuff
+        #ssh_opts = dict(self.cfg['SSH'])
+        #ssh_opts['mount_point']=self.lookup_mountpoint(outdir)
+        self.saveProcess =  mp.Process(target=file_save_process,args=(self.dataQueue, self.messageQueue, metadata_dictionary))
         self.saveProcess.start()
 
 
@@ -1198,7 +1225,7 @@ class MosaicPanel(FigureCanvas):
                                 self.slack_notify('Done Imaging!')
                         (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
                         #======================================================
-                        if self.interface.pause == True:
+                        if self.interface and self.interface.pause == True:
                             while self.interface.pause == True:
                                 self._check_sock(True)
                                 (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'REMOTELY PAUSED -- section %d of %d, frame %d'%(i,numSections-1,j))
@@ -1235,7 +1262,7 @@ class MosaicPanel(FigureCanvas):
             map_chan=self.channel_settings.map_chan
             self.imgSrc.set_channel(map_chan)
             self.imgSrc.set_exposure(self.channel_settings.exposure_times[map_chan])
-            print "should be changed"
+            #print "should be changed" ##DW WAT
 
         dlg.Destroy()
 

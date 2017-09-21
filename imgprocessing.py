@@ -39,3 +39,12 @@ def make_thumbnail(img, bin=2, autoscale=True):
     if img.dtype == np.uint16:
         img = image_16bit_to_8bit(img, autoscale=autoscale)
     return img
+
+def get_focus_score(img):
+    """ Olga's focus scoring algorithm.
+    """
+    score1 = cv2.Laplacian(img,cv2.CV_16U, ksize = 5)
+    score1_median = np.median(score1)
+    score1_std = np.std(score1)
+    score1_mean = np.mean(score1)
+    return (score1_mean, score1_median, score1_std)

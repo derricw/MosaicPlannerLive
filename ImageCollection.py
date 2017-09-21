@@ -48,6 +48,11 @@ class MyImage():
         cy=(top+bottom)/2;
         
         self.imagePath=f["imagePath"]["path"]
+        if not os.path.isfile(self.imagePath):
+            alt_path = filename.replace("_metadata.txt", ".tif")
+            if not os.path.isfile(alt_path):
+                raise IOError("Metadata points to non-existent file: {}".format(self.imagePath))
+            self.imagePath = alt_path
         self.format=f["imagePath"]["format"]
         self.boundBox=Rectangle(left,right,top,bottom)
 
@@ -324,13 +329,13 @@ class ImageCollection():
             
     def load_image_collection(self):
         #list all metadata files in rootdir
-        testimage=self.imageClass()
+        #testimage=self.imageClass()  # DW: what is this for?
         if not os.path.isdir(self.rootpath):
             os.makedirs(self.rootpath)
         
         metafiles=[os.path.join(self.rootpath,f) for f in os.listdir(self.rootpath) if f.endswith('.txt') ]
         
-        print "loading metadata"
+        print("loading metadata")
         #loop over files reading in metadata, and initializing Image objects, reading images to update display
         for file in metafiles:
             print file
@@ -341,35 +346,5 @@ class ImageCollection():
             self.add_image_to_display(data,theimage.boundBox)
             self.imgCount+=1
      
-            
-        
-        del(testimage)
+        #del(testimage)
       
-# filename="C:\Users\Smithlab\Documents\ASI_LUM_RETIGA_CRISP.cfg"
-# imgsrc=imageSource(filename)
-# channels=imgsrc.get_channels()
-# imgsrc.set_channel('Violet')
-# imgsrc.set_exposure(250)
-
-# plt.axis()
-# rootPath='C:\\Users\\Smithlab\\Documents\\ImageCollectTest\\'
-# figure = plt.figure(1,figsize=(5,14))
-# axes = figure.get_axes()
-
-# ic=ImageCollection(rootpath=rootPath,imageSource=imgsrc,axis=axes[0])
-# ic.load_image_collection()
-# box=Rectangle(-50,50,-50,50)
-# data2=ic.get_cutout(box)
-
-# box=Rectangle(-140,-90,0,50)
-# data2=ic.get_cutout(box)
-
-# box=Rectangle(-340,-240,0,50)
-# data2=ic.get_cutout(box)
-
-# box=Rectangle(-740,-740,0,50)
-# data2=ic.get_cutout(box)
-
-# plt.show()
-
-        
