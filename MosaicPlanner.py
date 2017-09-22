@@ -348,6 +348,7 @@ class MosaicPanel(FigureCanvas):
     """
     def __init__(self, parent, config, **kwargs):
         """keyword the same as standard init function for a FigureCanvas"""
+        self.parent = parent
         
         self.figure = Figure(figsize=(5, 9))
         FigureCanvas.__init__(self, parent, -1, self.figure, **kwargs)
@@ -554,27 +555,23 @@ class MosaicPanel(FigureCanvas):
                     print(time.clock()-t0)
 
 
-    def What_toMap(self):
-        dlg = MapSettingsDialog(None,-1,mapdict = self.mapdict)
-        buttonpressed = dlg.ShowModal()
-        if buttonpressed == wx.ID_OK:
-            mapchoice = dlg.GetValue()
-            self.cfg['MosaicPlanner']['default_imagepath'] = mapchoice
-            for key, value in self.mapdict.iteritems():
-                if value == mapchoice:
-                    self.cfg['MosaicPlanner']['default_arraypath'] = self.outdirdict[key]
-            return mapchoice
+    # def What_toMap(self):
+    #     dlg = MapSettingsDialog(None,-1,mapdict = self.mapdict)
+    #     buttonpressed = dlg.ShowModal()
+    #     if buttonpressed == wx.ID_OK:
+    #         mapchoice = dlg.GetValue()
+    #         self.cfg['MosaicPlanner']['default_imagepath'] = mapchoice
+    #         for key, value in self.mapdict.iteritems():
+    #             if value == mapchoice:
+    #                 self.cfg['MosaicPlanner']['default_arraypath'] = self.outdirdict[key]
+    #         return mapchoice
 
-
-
-
-
-    def get_ribbon_number(self):
-        dlg = RibbonNumberDialog(None,-1,style = wx.ID_OK)
-        dlg.ShowModal()
-        Ribbon_Num = dlg.GetValue()
-        dlg.Destroy()
-        return Ribbon_Num
+    # def get_ribbon_number(self):
+    #     dlg = RibbonNumberDialog(None,-1,style = wx.ID_OK)
+    #     dlg.ShowModal()
+    #     Ribbon_Num = dlg.GetValue()
+    #     dlg.Destroy()
+    #     return Ribbon_Num
 
     def handle_close(self,evt=None):
         print("handling close")
@@ -603,14 +600,15 @@ class MosaicPanel(FigureCanvas):
 
     def on_load(self,rootPath):
         self.rootPath = rootPath
-        print "transpose toggle state",self.imgSrc.transpose_xy
+        #print("transpose toggle state",self.imgSrc.transpose_xy)
         if self.mosaicImage != None:
             self.clear_position_list()
             self.mosaicImage = None
-        print("Root path: {}".format(self.rootPath))
+        logging.info("Loading map images @ {}".format(self.rootPath))
         self.mosaicImage=MosaicImage(self.subplot,self.posone_plot,self.postwo_plot,self.corrplot,self.imgSrc,rootPath,figure=self.figure)
         self.on_crop_tool()
         self.draw()
+        logging.info("Finished loading map!")
 
     def write_slice_metadata(self,filename,ch,xpos,ypos,zpos):
         f = open(filename, 'w')
@@ -789,7 +787,6 @@ class MosaicPanel(FigureCanvas):
         #self.imgSrc.set_hardware_autofocus_state(True)
 
     def ResetPiezo(self):
-
         do_stage_reset=self.cfg['StageResetSettings']['enableStageReset']
         if do_stage_reset:
             self.imgSrc.reset_piezo(self.cfg['StageResetSettings'])
@@ -875,18 +872,52 @@ class MosaicPanel(FigureCanvas):
         else:
             raise NotImplementedError("Only dict, path or DirectorySettings for now.")
         self.directory_settings = settings
-        #print settings
+        print(settings.__dict__)
         # DO WE NEED TO SET EXPOSURES HERE?
         # WHAT ABOUT UPDATE UI?
+        #self.imgCollectDirPicker.SetPath()
         return self.directory_settings
 
-    def load_position_list(self, position_list):
-        if isinstance(position_list, PosList):
-            pass
-        elif isinstance(position_list, str):
-            # file
-            #position_list = 
-            pass
+    def set_map_folder(self, folder):
+        """ Sets the current map folder in the GUI.
+
+            args:
+                folder (str): the map folder which contains a bunch of images and their
+                    text files.
+        """
+        if not os.path.isdir(folder):
+            os.makedirs(folder)
+        self.parent.imgCollectDirPicker.SetPath(folder)
+
+    def load_map(self, folder=None):
+        """ Loads the map at the specified folder.
+                If it is not provided, we attempt to load the whatever folder
+                was previous loaded.
+
+            args:
+                folder (Optional[None]): a map folder
+        """
+        if folder:
+            self.set_map_folder(folder)
+        self.on_load(folder)
+
+    def set_position_file(self, position_file):
+        """ Sets the current array position file in the GUI.
+
+            args:
+                position_file (str): file path to position list.
+        """
+        # do we need to check if the file exists?  I think not.
+        self.parent.array_filepicker.SetPath(position_file)
+
+    def load_position_list(self, position_file=None):
+        """ Loads a specific position list file.
+                If not provided, it will load the one currently specified in the
+                GUI.
+        """
+        if position_file:
+            self.set_position_file(position_file)
+        self.parent.on_array_load()
 
     def clear_position_list(self):
         """ Clears the current position list.
@@ -1906,7 +1937,12 @@ class MosaicPanel(FigureCanvas):
         self.posList.add_from_file_JSON(filename)
 
 class ZVISelectFrame(wx.Frame):
-    """class extending wx.Frame for highest level handling of GUI components """
+    """class extending wx.Frame for highest level handling of GUI components
+    
+        This is the main frame that instantiates a "MosaicPannel" and configures it.  It also houses many
+            configuration methods.
+    
+    """
     ID_RELATIVEMOTION = wx.NewId()
     ID_EDIT_CAMERA_SETTINGS = wx.NewId()
     ID_EDIT_SMARTSEM_SETTINGS = wx.NewId()
@@ -2204,24 +2240,29 @@ class ZVISelectFrame(wx.Frame):
 
     def on_array_load(self,event="none"):
         """event handler for the array load button"""
-        if self.array_formatBox.GetValue()=='AxioVision':
-            self.mosaicCanvas.posList.add_from_file(self.array_filepicker.GetPath())
+        # DW: If they've loaded a json file, then lets do that regardless of the array
+        #   type box.
+        # 
+        array_file_path = self.array_filepicker.GetPath()
+        if array_file_path.lower().endswith(".json"):
+            self.mosaicCanvas.posList.add_from_file_JSON(array_file_path)
+        # Might as well still allow old method
+        elif self.array_formatBox.GetValue()=='AxioVision':
+            self.mosaicCanvas.posList.add_from_file(array_file_path)
         elif self.array_formatBox.GetValue()=='OMX':
-            print "not yet implemented"
+            raise NotImplementedError("No OMX yet.")
         elif self.array_formatBox.GetValue()=='SmartSEM':
-            SEMsetting=self.mosaicCanvas.posList.add_from_file_SmartSEM(self.array_filepicker.GetPath())
+            SEMsetting=self.mosaicCanvas.posList.add_from_file_SmartSEM(array_file_path)
             self.SmartSEMSettings=SEMsetting
         elif self.array_formatBox.GetValue()=='ZEN':
-            self.mosaicCanvas.posList.add_from_file_ZEN(self.array_filepicker.GetPath())
-        elif self.array_formatBox.GetValue()=='JSON': #MultiRibbons
-            self.mosaicCanvas.posList.add_from_file_JSON(self.array_filepicker.GetPath())
+            self.mosaicCanvas.posList.add_from_file_ZEN(array_file_path)
+        elif self.array_formatBox.GetValue()=='JSON':
+            self.mosaicCanvas.posList.add_from_file_JSON(array_file_path)
 
         self.mosaicCanvas.navtoolbar.set_mosaic_parameters(self.mosaicCanvas.posList.mosaic_settings)
         self.mosaicCanvas.draw()
 
-        # if self.array_formatBox.GetValue()=='JSON':
-        # if self.mosaicCanvas.cfg['MosaicPlanner']['frame_state_save']:
-        #     self.mosaicCanvas.posList.load_frame_state_table(self.array_filepicker.GetPath())
+        logging.info("Loaded array file @ {}".format(array_file_path))
 
 
     def on_array_save(self,event):
@@ -2352,7 +2393,7 @@ class ZVISelectFrame(wx.Frame):
         dlg.Destroy()
 
     def on_close(self,event):
-        print "closing"
+        print("closing")
 
         self.mosaicCanvas.handle_close()
         self.Destroy()
@@ -2360,6 +2401,7 @@ class ZVISelectFrame(wx.Frame):
 if __name__ == '__main__':
     #dirname=sys.argv[1]
     #print dirname
+    logging.basicConfig(level=logging.DEBUG)
     faulthandler.enable()
     app = wx.App(False)
     # Create a new app, don't redirect stdout/stderr to a window.

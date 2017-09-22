@@ -64,6 +64,10 @@ class RemoteInterface(Publisher):
         self.parent = parent
         self._pause = False
 
+        self._current_map = None
+        self._current_position_list = None
+        self._current_channel_settings = None
+
     @property
     def pause(self):
         return self._pause
@@ -178,6 +182,13 @@ class RemoteInterface(Publisher):
         Args:
             session_data (dict): session data
         """
+        channel_settings = session_data['channel_settings']
+        map_folder = session_data['map_folder']
+        position_list = session_data['position_list']
+
+        self.load_channel_settings(channel_settings)
+        self.load_map(map_folder)
+        self.load_position_list(position_list)
 
     def load_session(self, session_file):
         """ Reads a session from a yaml file and loads it.
@@ -194,25 +205,54 @@ class RemoteInterface(Publisher):
     def load_channel_settings(self, settings):
         self.parent.load_channel_settings(settings)
 
-    def load_directory_settings(self, settings=None):
-        s = self.parent.load_directory_settings(settings)
-        return s.__dict__
+    def load_map(self, folder=None):
+        """ Loads the map at the specified folder
+                or at the one currently specified in the GUI.
+        """
+        self.parent.load_map(folder)
+        self._current_map = folder
 
-    def load_position_list(self, position_list):
-        self.parent.load_position_list(position_list)
+    def set_position_file(self, position_file):
+        """ Sets the current array position file in the GUI.
+
+            args:
+                position_file (str): file path to position list.
+        """
+        self.parent.set_position_file(position_file)
+
+    def load_position_list(self, position_file=None):
+        """ Loads a specific position list file.
+                If not provided, it will load the one currently specified in the
+                GUI.
+        """
+        self.parent.load_position_list(position_file)
 
     def clear_position_list(self):
+        """ Clears the current position list.
+        """
         self.parent.clear_position_list()
 
-    def get_directory_settings(self):
-        outdirdict = self.parent.outdirdict
-        print(outdirdict)
-        outdirlist =[]
-        keys = sorted(outdirdict)
-        for key in keys:
-            outdirlist.append(outdirdict[key])
-        return outdirlist
+    def set_directory_settings(self, root_dir, sample_id, ribbon_id, session_id):
+        """ Sets directory settings exactly how Mosiac planner likes them.
+        """
+        settings = {
+            "default_path": root_dir,
+            "Sample_ID": sample_id,
+            "Ribbon_ID": ribbon_id,
+            "Session_ID": session_id,
+            "Map_num": 0, # ??
+        }
+        self.parent.load_directory_settings(settings)
 
+    def get_directory_settings(self):
+        settings = self.parent.directory_settings.__dict__
+        return {
+            "sample_id": settings['Sample_ID'],
+            "ribbon_id": settings['Ribbon_ID'],
+            "session_id": settings['Session_ID'],
+            "root_dir": settings['default_path'],
+            # Include map#?
+        }
 
     def sample_nearby(self, pos=None, folder="", size=3):
         """ Samples a grid of images and saves them to a specified folder.
@@ -256,22 +296,12 @@ class RemoteInterface(Publisher):
     def autofocus(self, search_range=320, step=20, settle_time=1.0, attempts=3):
         """ Triggers autofocus.
         """
-        # best_offset = self.parent.software_autofocus(False, False)
-        # logging.info("Autofocus finished."
-        # return best_offset
-        #self.parent.imgSrc.set_hardware_autofocus_state(True)
         z_pos = self.parent.imgSrc.focus_search(search_range=search_range,
                                                 step=step,
                                                 settle_time=settle_time,
                                                 attempts=attempts)
         logging.info("Autofocus completed @ objective height: {}".format(z_pos))
         return z_pos
-
-    def change_channel_settings(self):
-        """ ROB: what is this?
-
-        """
-        self.parent.edit_channels()
 
     @property
     def is_acquiring(self):

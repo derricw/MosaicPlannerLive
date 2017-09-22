@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 import matplotlib.pyplot as plt
 import os
 from PIL import Image
@@ -337,14 +338,14 @@ class ImageCollection():
         
         print("loading metadata")
         #loop over files reading in metadata, and initializing Image objects, reading images to update display
-        for file in metafiles:
-            print file
+        for metafile in metafiles:
             theimage=self.imageClass()
-            theimage.load_from_metadata(file)
+            theimage.load_from_metadata(metafile)
             self.images.append(theimage)
             data=theimage.get_data()
             self.add_image_to_display(data,theimage.boundBox)
             self.imgCount+=1
+            logging.debug("Loaded img data {}".format(metafile))
      
         #del(testimage)
       
