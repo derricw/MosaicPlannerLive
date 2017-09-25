@@ -345,7 +345,7 @@ class ImageCollection():
             data=theimage.get_data()
             self.add_image_to_display(data,theimage.boundBox)
             self.imgCount+=1
-            logging.debug("Loaded img data {}".format(metafile))
+            logging.debug("Loaded img data from {}".format(metafile))
      
         #del(testimage)
       

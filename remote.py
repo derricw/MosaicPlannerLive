@@ -168,41 +168,17 @@ class RemoteInterface(Publisher):
         remainingTime = self.parent.getRemainingImagingTime()
         return remainingTime
 
-    def get_current_session(self):
+    def get_current_acquisition_settings(self):
         """ Gets the current imaging session metadata.
 
         Returns:
             dict: session data
         """
-        return {}
-
-    def set_current_session(self, session_data):
-        """ Sets the current imaging session metadata from a session file.
-
-        Args:
-            session_data (dict): session data
-        """
-        channel_settings = session_data['channel_settings']
-        map_folder = session_data['map_folder']
-        position_list = session_data['position_list']
-
-        self.load_channel_settings(channel_settings)
-        self.load_map(map_folder)
-        self.load_position_list(position_list)
-
-    def load_session(self, session_file):
-        """ Reads a session from a yaml file and loads it.
-
-        Args:
-            session_file (str): path to session file
-
-        """
-        import yaml
-        with open(session_file, 'r') as f:
-            data = yaml.load(f)
-        self.set_current_session(data)
+        return self.parent.get_current_acquisition_settings()
 
     def load_channel_settings(self, settings):
+        """ Load channel settings.
+        """
         self.parent.load_channel_settings(settings)
 
     def load_map(self, folder=None):
@@ -253,6 +229,12 @@ class RemoteInterface(Publisher):
             "root_dir": settings['default_path'],
             # Include map#?
         }
+
+    def save_acquisition_settings(self, path):
+        self.parent.save_acquisition_settings(path)
+
+    def load_acquisition_settings(self, path):
+        self.parent.load_acquisition_settings(path)
 
     def sample_nearby(self, pos=None, folder="", size=3):
         """ Samples a grid of images and saves them to a specified folder.

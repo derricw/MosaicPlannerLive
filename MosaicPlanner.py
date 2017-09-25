@@ -22,10 +22,12 @@ import traceback
 import time
 import multiprocessing as mp
 import pickle
+import datetime
 import json
 
 import logging
-logging.getLogger('MosaicPlanner').addHandler(logging.NullHandler())
+logging.basicConfig(level=logging.DEBUG)
+#logging.getLogger('MosaicPlanner').addHandler(logging.NullHandler())
 
 import wx
 import numpy as np
@@ -599,6 +601,9 @@ class MosaicPanel(FigureCanvas):
         # DO WE NEED TO FIDDLE WITH CHANNEL SETTINGS HERE LIKE THEY DO IN THE INIT?
 
     def on_load(self,rootPath):
+        """ Called when a user loads a map.  Creates a new MosaicImage instance and
+                using the map and populates it.
+        """
         self.rootPath = rootPath
         #print("transpose toggle state",self.imgSrc.transpose_xy)
         if self.mosaicImage != None:
@@ -878,6 +883,16 @@ class MosaicPanel(FigureCanvas):
         #self.imgCollectDirPicker.SetPath()
         return self.directory_settings
 
+    @property
+    def map_folder(self):
+        return self.parent.imgCollectDirPicker.GetPath()
+
+    @map_folder.setter
+    def map_folder(self, folder):
+        if not os.path.isdir(folder):
+            os.makedirs(folder)
+        self.parent.imgCollectDirPicker.SetPath(folder)
+
     def set_map_folder(self, folder):
         """ Sets the current map folder in the GUI.
 
@@ -885,9 +900,7 @@ class MosaicPanel(FigureCanvas):
                 folder (str): the map folder which contains a bunch of images and their
                     text files.
         """
-        if not os.path.isdir(folder):
-            os.makedirs(folder)
-        self.parent.imgCollectDirPicker.SetPath(folder)
+        self.map_folder = folder
 
     def load_map(self, folder=None):
         """ Loads the map at the specified folder.
@@ -898,8 +911,16 @@ class MosaicPanel(FigureCanvas):
                 folder (Optional[None]): a map folder
         """
         if folder:
-            self.set_map_folder(folder)
+            self.map_folder = folder
         self.on_load(folder)
+
+    @property
+    def position_list_path(self):
+        return self.parent.array_filepicker.GetPath()
+
+    @position_list_path.setter
+    def position_list_path(self, path):
+        self.parent.array_filepicker.SetPath(path)
 
     def set_position_file(self, position_file):
         """ Sets the current array position file in the GUI.
@@ -908,7 +929,7 @@ class MosaicPanel(FigureCanvas):
                 position_file (str): file path to position list.
         """
         # do we need to check if the file exists?  I think not.
-        self.parent.array_filepicker.SetPath(position_file)
+        self.position_list_path = position_file
 
     def load_position_list(self, position_file=None):
         """ Loads a specific position list file.
@@ -918,6 +939,46 @@ class MosaicPanel(FigureCanvas):
         if position_file:
             self.set_position_file(position_file)
         self.parent.on_array_load()
+
+    def save_position_list(self, path):
+        """ Saves the position list to a specified path. """
+        #I'm not sure what this transfromed stuff does but 
+        # i'm keeping it until i know
+        if self.parent.save_transformed.IsChecked():
+            trans=self.parent.Transform
+        else:
+            trans=None
+        self.posList.save_position_list_JSON(path,trans=trans)
+
+    def get_current_acquisition_settings(self):
+        return {
+            "position_list_path": self.position_list_path,
+            "map_folder": self.map_folder,
+            "channel_settings": self.channel_settings.__dict__,
+            "directory_settings": self.directory_settings.__dict__,
+            "datetime": datetime.datetime.now(),
+            "micromanager_config": self.MM_config_file,
+        }
+
+    def save_acquisition_settings(self, path):
+        """ Saves the acquisition settings to a specified yaml path.
+        """
+        settings = self.get_current_acquisition_settings()
+        import yaml  #DW should i move this import to top?
+        with open(path, 'w') as f:
+            yaml.dump(settings, f, default_flow_style=False)
+
+    def load_acquisition_settings(self, path):
+        """ Loads acquisition settings from a specified yaml path.
+        """
+        import yaml
+        with open(path, 'r') as f:
+            settings = yaml.load(f)
+        self.load_map(settings['map_folder'])
+        self.load_position_list(settings['position_list_path'])
+        self.load_directory_settings(settings['directory_settings'])
+        self.load_channel_settings(settings['channel_settings'])
+        # load MM config?  probably shouldn't
 
     def clear_position_list(self):
         """ Clears the current position list.
@@ -1789,6 +1850,7 @@ class MosaicPanel(FigureCanvas):
             else:
                 self.posList.shift_selected(dx,dy)
             self.draw()
+
     def do_angle_shift(self,event):
         keycode=event.GetKeyCode()
         jump=.01
@@ -2246,6 +2308,7 @@ class ZVISelectFrame(wx.Frame):
         array_file_path = self.array_filepicker.GetPath()
         if array_file_path.lower().endswith(".json"):
             self.mosaicCanvas.posList.add_from_file_JSON(array_file_path)
+
         # Might as well still allow old method
         elif self.array_formatBox.GetValue()=='AxioVision':
             self.mosaicCanvas.posList.add_from_file(array_file_path)
@@ -2267,41 +2330,25 @@ class ZVISelectFrame(wx.Frame):
 
     def on_array_save(self,event):
         """event handler for the array save button"""
+        if self.save_transformed.IsChecked():
+            trans=self.Transform
+        else:
+            trans=None
         if self.array_formatBox.GetValue()=='AxioVision':
-            if self.save_transformed.IsChecked():
-                self.mosaicCanvas.posList.save_position_list(self.array_filepicker.GetPath(),trans=self.Transform)
-            else:
-                self.mosaicCanvas.posList.save_position_list(self.array_filepicker.GetPath())
+                self.mosaicCanvas.posList.save_position_list(self.array_filepicker.GetPath(),trans=trans)
         elif self.array_formatBox.GetValue()=='OMX':
-            if self.save_transformed.IsChecked():
-                self.mosaicCanvas.posList.save_position_list_OMX(self.array_filepicker.GetPath(),trans=self.Transform);
-            else:
-                self.mosaicCanvas.posList.save_position_list_OMX(self.array_filepicker.GetPath(),trans=None);
+                self.mosaicCanvas.posList.save_position_list_OMX(self.array_filepicker.GetPath(),trans=trans);
         elif self.array_formatBox.GetValue()=='SmartSEM':
-            if self.save_transformed.IsChecked():
-                self.mosaicCanvas.posList.save_position_list_SmartSEM(self.array_filepicker.GetPath(),SEMS=self.SmartSEMSettings,trans=self.Transform)
-            else:
-                self.mosaicCanvas.posList.save_position_list_SmartSEM(self.array_filepicker.GetPath(),SEMS=self.SmartSEMSettings,trans=None)
+                self.mosaicCanvas.posList.save_position_list_SmartSEM(self.array_filepicker.GetPath(),SEMS=self.SmartSEMSettings,trans=trans)
         elif self.array_formatBox.GetValue()=='ZEN':
-            if self.save_transformed.IsChecked():
-                self.mosaicCanvas.posList.save_position_list_ZENczsh(self.array_filepicker.GetPath(),trans=self.Transform,planePoints=self.planePoints)
-            else:
-                self.mosaicCanvas.posList.save_position_list_ZENczsh(self.array_filepicker.GetPath(),trans=None,planePoints=self.planePoints)
+                self.mosaicCanvas.posList.save_position_list_ZENczsh(self.array_filepicker.GetPath(),trans=trans,planePoints=self.planePoints)
         elif self.array_formatBox.GetValue()=='uManager':
-            if self.save_transformed.IsChecked():
-                self.mosaicCanvas.posList.save_position_list_uM(self.array_filepicker.GetPath(),trans=self.Transform)
-            else:
-                self.mosaicCanvas.posList.save_position_list_uM(self.array_filepicker.GetPath(),trans=None)
-        elif self.array_formatBox.GetValue()=='JSON': #MultiRibbons
-            if self.save_transformed.IsChecked():
-                self.mosaicCanvas.posList.save_position_list_JSON(self.array_filepicker.GetPath(),trans=self.Transform)
-            else:
-                print 'hello'
-                self.mosaicCanvas.posList.save_position_list_JSON(self.array_filepicker.GetPath(),trans=None)
+                self.mosaicCanvas.posList.save_position_list_uM(self.array_filepicker.GetPath(),trans=trans)
+        elif self.array_formatBox.GetValue()=='JSON':
+                self.mosaicCanvas.posList.save_position_list_JSON(self.array_filepicker.GetPath(),trans=trans)
+        
         if self.mosaicCanvas.cfg['MosaicPlanner']['frame_state_save']:
             self.mosaicCanvas.posList.on_save_frame_state_table(self.array_filepicker.GetPath())
-
-
 
     def on_image_collect_load(self,event):
         path=self.imgCollectDirPicker.GetPath()
@@ -2401,7 +2448,6 @@ class ZVISelectFrame(wx.Frame):
 if __name__ == '__main__':
     #dirname=sys.argv[1]
     #print dirname
-    logging.basicConfig(level=logging.DEBUG)
     faulthandler.enable()
     app = wx.App(False)
     # Create a new app, don't redirect stdout/stderr to a window.
