@@ -287,7 +287,7 @@ class MosaicToolbar(NavBarImproved):
         wx.EVT_TOOL(self, self.ON_DELETE_SELECTED, self.canvas.on_delete_points)
         wx.EVT_TOOL(self, self.ON_CORR, self.canvas.on_corr_tool)
         wx.EVT_TOOL(self, self.ON_STEP, self.canvas.on_step_tool)
-        wx.EVT_TOOL(self, self.ON_RUN, self.canvas.on_run_acq)
+        wx.EVT_TOOL(self, self.ON_RUN, self.canvas.setup_complete)
         wx.EVT_TOOL(self, self.ON_FF, self.canvas.on_fastforward_tool)
         wx.EVT_TOOL(self, self.ON_GRID, self.canvas.on_grid_tool)
         wx.EVT_TOOL(self, self.ON_ROTATE, self.canvas.on_rotate_tool)
@@ -979,6 +979,9 @@ class MosaicPanel(FigureCanvas):
         self.load_directory_settings(settings['directory_settings'])
         self.load_channel_settings(settings['channel_settings'])
         # load MM config?  probably shouldn't
+
+    def setup_complete(self):
+        print("Setup complete!")
 
     def clear_position_list(self):
         """ Clears the current position list.
