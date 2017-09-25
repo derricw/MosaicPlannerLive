@@ -980,7 +980,7 @@ class MosaicPanel(FigureCanvas):
         self.load_channel_settings(settings['channel_settings'])
         # load MM config?  probably shouldn't
 
-    def setup_complete(self):
+    def setup_complete(self, event=None):
         print("Setup complete!")
 
     def clear_position_list(self):
