@@ -292,6 +292,9 @@ class RemoteInterface(Publisher):
         #return self.parent.acquiring
         return False
 
+    def start_acquisition(self):
+        self.parent.on_run_acq()
+
     def check_bubbles(self, img_folder):
         """ Checks for bubbles in the images in specified folder.
 

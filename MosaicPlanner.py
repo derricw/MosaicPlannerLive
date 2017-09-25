@@ -1191,12 +1191,12 @@ class MosaicPanel(FigureCanvas):
 
         #self.slack_notify("about to image %d sections"%len(self.posList.slicePositions))
 
-        Caption = "about to capture %d sections, binning is %dx%d, numchannel is %d"%(len(self.posList.slicePositions),binning,binning,numchan)
-        dlg = wx.MessageDialog(self,message=Caption, style = wx.OK|wx.CANCEL)
+        # Caption = "about to capture %d sections, binning is %dx%d, numchannel is %d"%(len(self.posList.slicePositions),binning,binning,numchan)
+        # dlg = wx.MessageDialog(self,message=Caption, style = wx.OK|wx.CANCEL)
 
-        button_pressed = dlg.ShowModal()
-        if button_pressed == wx.ID_CANCEL:
-            return False
+        # button_pressed = dlg.ShowModal()
+        # if button_pressed == wx.ID_CANCEL:
+        #     return False
 
 
         # DW: What is going on here?
