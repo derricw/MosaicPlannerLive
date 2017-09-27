@@ -1,4 +1,5 @@
 import numpy as np
+import cv2
 
 def image_16bit_to_8bit(img_16bit, autoscale=False):
     """

@@ -508,7 +508,11 @@ class MosaicPanel(FigureCanvas):
     def _check_sock(self, event):
         """ Checks for commands from remote control interface. Called every 200ms.
         """
-        self.interface._check_rep()
+        try:
+            self.interface._check_rep()
+        except Exception as e:
+            #print e  #UNCOMMENT IF MP STOPS COMMUNICATING
+            pass
 
     def setZPosition(self,position, wait=True):
         """ Sets objective height.
@@ -879,16 +883,26 @@ class MosaicPanel(FigureCanvas):
         self.directory_settings = settings
         print(settings.__dict__)
         # DO WE NEED TO SET EXPOSURES HERE?
-        # WHAT ABOUT UPDATE UI?
-        #self.imgCollectDirPicker.SetPath()
+        map_folder = settings.create_directory(self.cfg, "map")
+        self.set_map_folder(map_folder)
+        # pos_list_map#.json
+        map_num = settings.Map_num
+        parent_dir = os.path.dirname(map_folder)
+        default_pos_list_path = os.path.join(parent_dir, "pos_list_map{}.json".format(map_num))
+        self.set_position_file(default_pos_list_path)
+
+        data_folder = settings.create_directory(self.cfg, "data")
+
         return self.directory_settings
 
     @property
     def map_folder(self):
+        # DW: todo: don't get this from the gui, get it from dir settings
         return self.parent.imgCollectDirPicker.GetPath()
 
     @map_folder.setter
     def map_folder(self, folder):
+        # DW: put this into dir settings as well
         if not os.path.isdir(folder):
             os.makedirs(folder)
         self.parent.imgCollectDirPicker.SetPath(folder)
@@ -951,11 +965,14 @@ class MosaicPanel(FigureCanvas):
         self.posList.save_position_list_JSON(path,trans=trans)
 
     def get_current_acquisition_settings(self):
+        """ Gets all the data required to re-create this acquisition.
+        """
+        dir_settings = self.directory_settings.__dict__
         return {
             "position_list_path": self.position_list_path,
             "map_folder": self.map_folder,
             "channel_settings": self.channel_settings.__dict__,
-            "directory_settings": self.directory_settings.__dict__,
+            "directory_settings": dir_settings,
             "datetime": datetime.datetime.now(),
             "micromanager_config": self.MM_config_file,
         }
@@ -981,6 +998,8 @@ class MosaicPanel(FigureCanvas):
         # load MM config?  probably shouldn't
 
     def setup_complete(self, event=None):
+        """ Callback for batman button (used to start acquisition)
+        """
         print("Setup complete!")
 
     def clear_position_list(self):
@@ -991,6 +1010,10 @@ class MosaicPanel(FigureCanvas):
         self.subplot.clear()
         self.posone_plot.clear()
         self.postwo_plot.clear()
+
+    def unload_arduino(self):
+        # DW: basically something about the arduino is fucking up
+        self.imgSrc.mmc.unloadDevice("LaserArduino")
 
     def summarize_autofocus_settings(self):
         auto_sleep = self.cfg['Mosaic Planner']['autofocus_sleep']
@@ -1028,7 +1051,7 @@ class MosaicPanel(FigureCanvas):
         maxProgress = numSections*numFrames
 
         self.progress = wx.ProgressDialog("A progress box", "Time remaining", maxProgress ,
-        style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME)
+        style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME | wx.PD_AUTO_HIDE)
 
         return numFrames,numSections
 
@@ -1124,6 +1147,7 @@ class MosaicPanel(FigureCanvas):
         self.saveProcess.join()
         print("save process ended")
         self.progress.Destroy()
+        #self.progress.Close()
         self.imgSrc.set_binning(2)
         if self.cfg['MosaicPlanner']['hardware_trigger']:
             self.imgSrc.stop_hardware_triggering()
@@ -1173,47 +1197,21 @@ class MosaicPanel(FigureCanvas):
         self.software_autofocus(acquisition_boolean=True)
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
 
-    def on_run_acq(self,outdir = None,event="none"):
+    def on_run_acq(self,outdir=None,event="none"):
         """ Main acquisition loop.
         """
         print "running"
-        #from SetupAlerts import SetupAlertDialog
 
-        #dlg = SetupAlertDialog(self.cfg['smtp'])
-        #dlg.setModal(True)
-        #dlg.show()
-        #alert_settings = dlg.getSettings()
-
-
-        #self.channel_settings
-        #self.pos_list
-        #self.imgSrc
         self.imgSrc.set_binning(1)
         binning=self.imgSrc.get_binning()
         numchan,chrom_correction = self.summarize_channel_settings()
 
-        #self.slack_notify("about to image %d sections"%len(self.posList.slicePositions))
+        if not outdir:
+            outdir = self.directory_settings.get_data_folder()
 
-        # Caption = "about to capture %d sections, binning is %dx%d, numchannel is %d"%(len(self.posList.slicePositions),binning,binning,numchan)
-        # dlg = wx.MessageDialog(self,message=Caption, style = wx.OK|wx.CANCEL)
+        self.make_channel_directories(outdir)
 
-        # button_pressed = dlg.ShowModal()
-        # if button_pressed == wx.ID_CANCEL:
-        #     return False
-
-
-        # DW: What is going on here?
-        for key,value in self.outdirdict.iteritems():
-            outdir = self.outdirdict[key]
-
-        if outdir is None:
-            return None
-
-        for key,value in self.outdirdict.iteritems():
-
-            self.make_channel_directories(value)
-
-            self.write_session_metadata(value)
+        self.write_session_metadata(outdir)
 
         self.move_safe_to_start()
 
@@ -1248,8 +1246,6 @@ class MosaicPanel(FigureCanvas):
             success=self.imgSrc.setup_hardware_triggering(channels,exp_times)
         else:
             success = False
-
-
 
         goahead = True
 
@@ -1344,8 +1340,9 @@ class MosaicPanel(FigureCanvas):
         self.saveProcess.join()
 
         self.progress.Destroy()
+        wx.Yield()
         self.imgSrc.set_binning(2)
-        if (self.cfg['MosaicPlanner']['hardware_trigger']) and (not self.multiribbon_boolean):
+        if (self.cfg['MosaicPlanner']['hardware_trigger']):
             self.imgSrc.stop_hardware_triggering()
 
     def edit_channels(self,event="none"):

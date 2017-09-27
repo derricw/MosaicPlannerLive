@@ -217,6 +217,8 @@ class RemoteInterface(Publisher):
             "Ribbon_ID": ribbon_id,
             "Session_ID": session_id,
             "Map_num": 0, # ??
+            "Slot_num": 0,  #DW: what should i do with this?
+            "meta_experiment_name": "automated",
         }
         self.parent.load_directory_settings(settings)
 
@@ -258,6 +260,9 @@ class RemoteInterface(Publisher):
         self.publish(thumb)
         return data
 
+    def unload_arduino(self):
+        self.parent.unload_arduino()
+
 
     def connect_objective(self, pos_z, speed=None):
         approach_offset = 4000.0 # configurable?
@@ -292,8 +297,8 @@ class RemoteInterface(Publisher):
         #return self.parent.acquiring
         return False
 
-    def start_acquisition(self):
-        self.parent.on_run_acq()
+    def start_acquisition(self, data_dir=""):
+        self.parent.on_run_acq(data_dir)
 
     def check_bubbles(self, img_folder):
         """ Checks for bubbles in the images in specified folder.

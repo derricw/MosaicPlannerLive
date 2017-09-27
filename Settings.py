@@ -20,6 +20,7 @@ import wx
 import os
 import json
 import marshmallow as mm
+import logging
 import yaml
 
 class DirectorySettings():
@@ -55,37 +56,34 @@ class DirectorySettings():
         self.Slot_num = cfg['Directories']['Slot_num']
         self.meta_experiment_name = cfg['Directories']['meta_experiment_name']
 
-    def create_directory(self,cfg,kind):
+    def create_directory(self,cfg,kind="data"):
         root = self.default_path
         print 'root:', root
         if kind == 'map':
-            map_folder = os.path.join(root,self.Sample_ID,'raw','map','Ribbon%04d'%self.Ribbon_ID,'map%01d'%self.Map_num)
+            map_folder = self.get_map_folder()
             if not os.path.exists(map_folder):
                 os.makedirs(map_folder)
                 cfg['MosaicPlanner']['default_imagepath'] = map_folder
-                # return map_folder
             else:
-                # return map_folder
                 cfg['MosaicPlanner']['default_imagepath'] = map_folder
             return map_folder
         elif kind == 'data':
-            data_folder = os.path.join(root,self.Sample_ID,'raw','data','Ribbon%04d'%self.Ribbon_ID,'session%02d'%self.Session_ID)
+            data_folder = self.get_data_folder()
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
-                return data_folder
             else:
-                dlg = wx.MessageDialog(None,message = "Path already exists! Do you wish to continue?",caption = "Directory Warning",style = wx.YES|wx.NO)
-                button_pressed = dlg.ShowModal()
-                if button_pressed == wx.ID_YES:
-                    return data_folder
-                elif button_pressed == wx.ID_NO:
-                    box = wx.MessageDialog(None,message = 'Aborting Acquisition')
-                    box.ShowModal()
-                    box.Destroy()
-                    return None
+                logging.info("Path already exists: {}".format(data_folder))
+            return data_folder
         else:
-            dlg = wx.MessageBox(self,caption = 'Error',message = "Directory must be either \'map\' or \'data\' \n Aborting Acquisition")
-            return None
+            raise Exception("Please choose correct folder type.")
+
+    def get_data_folder(self):
+        root = self.default_path
+        return os.path.join(root,self.Sample_ID,'raw','data','Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
+
+    def get_map_folder(self):
+        root = self.default_path
+        return os.path.join(root,self.Sample_ID,'raw','map','Ribbon{}'.format(self.Ribbon_ID),'map{}'.format(self.Map_num))
 
 
 class SessionSettings():
@@ -525,7 +523,6 @@ class ChannelSettings():
         self.def_offset=def_offset
         
         self.exposure_times=exposure_times
-        self.zoffsets=zoffsets
         self.usechannels=usechannels
         self.prot_names=prot_names
 
@@ -543,7 +540,6 @@ class ChannelSettings():
         cfg['ChannelSettings']['map_chan']=self.map_chan
         for ch in self.channels:
             cfg['ChannelSettings']['Exposure_'+ch]=self.exposure_times[ch]
-            cfg['ChannelSettings']['ZOffsets_'+ch]=self.zoffsets[ch]
             cfg['ChannelSettings']['UseChannel_'+ch]=self.usechannels[ch]
             cfg['ChannelSettings']['ProteinNames_'+ch]=self.prot_names[ch]
         cfg.write()
@@ -551,7 +547,6 @@ class ChannelSettings():
     def load_settings(self,cfg):
         for ch in self.channels:
             self.exposure_times[ch]=cfg['ChannelSettings'].get('Exposures_'+ch,self.def_exposure)
-            self.zoffsets[ch]=cfg['ChannelSettings'].get('ZOffsets_'+ch,self.def_offset)
             self.usechannels[ch]=cfg['ChannelSettings'].get('UseChannel_'+ch,True)
             self.prot_names[ch]=cfg['ChannelSettings'].get('ProteinNames_'+ch,ch)
 

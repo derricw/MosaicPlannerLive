@@ -840,8 +840,19 @@ class PosList():
                 (xt,yt)=trans.transform(pos.x,pos.y)
                 writer.writerow(['%03d: %f'%(index,xt),yt,Z])
 
-    def save_position_list_JSON(self,filename,trans=None): #MultiRibbons
+    def save_position_list_JSON(self,filename,trans=None):
         #save the positionlist to JSON format, include position x, y, angle, mosaic settings, channel settings
+        data = self.get_position_list_dict(trans=trans)
+
+        thestring=json.JSONEncoder().encode(data)
+        file = open(filename,'w')
+        file.write(thestring)
+        file.close()
+        self.on_save_frame_state_table(filename)
+
+    def get_position_list_dict(self, trans=None):
+        """ Gets a dictionary of the position data for easy serialization.
+        """
         self.__sort_points()
 
         poslist=[]
@@ -849,23 +860,19 @@ class PosList():
 
             if trans == None:
                 posdict={"SECTION": "%d"%(100000+index),"X": pos.x,"Y": pos.y,"ANGLE": pos.angle}
-
             else:
                 (xt,yt)=trans.transform(pos.x,pos.y)
                 posdict={"SECTION": "%d"%(100000+index),"X": xt,"Y": yt,"ANGLE": pos.angle}
 
             poslist.append(posdict)
 
-        dict={"MOSAIC": {"MOSAICX": self.mosaic_settings.mx,"MOSAICY": self.mosaic_settings.my,"OVERLAP": self.mosaic_settings.overlap},
-        "CHANNELS": {},
-        "POSITIONS":poslist}
-
-        thestring=json.JSONEncoder().encode(dict)
-        file = open(filename,'w')
-        file.write(thestring)
-        file.close()
-        self.on_save_frame_state_table(filename)
-
+        return {
+            "MOSAIC": {"MOSAICX": self.mosaic_settings.mx,
+                       "MOSAICY": self.mosaic_settings.my,
+                       "OVERLAP": self.mosaic_settings.overlap},
+            #"CHANNELS": {}, # DW: I don't think this does anything...
+            "POSITIONS":poslist,
+        }
 
     def on_save_frame_state_table(self,filepath):
 
