@@ -263,8 +263,14 @@ class RemoteInterface(Publisher):
     def unload_arduino(self):
         self.parent.unload_arduino()
 
+    def move_to_cassette(self, cassette_index=0):
+        """ Moves to the specified cassette.
+        """
+        return self.parent.move_to_cassette(cassette_index)
 
     def connect_objective(self, pos_z, speed=None):
+        """ Connects the objective, moves to pos_z
+        """
         approach_offset = 4000.0 # configurable?
         # go to approach offset first
         self.set_objective_z(approach_offset)

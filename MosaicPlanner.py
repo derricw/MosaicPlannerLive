@@ -897,7 +897,8 @@ class MosaicPanel(FigureCanvas):
 
     @property
     def map_folder(self):
-        # DW: todo: don't get this from the gui, get it from dir settings
+        """ Returns the current GUI position list path
+        """
         return self.parent.imgCollectDirPicker.GetPath()
 
     @map_folder.setter
@@ -930,6 +931,8 @@ class MosaicPanel(FigureCanvas):
 
     @property
     def position_list_path(self):
+        """ Returns the current GUI position list path.
+        """
         return self.parent.array_filepicker.GetPath()
 
     @position_list_path.setter
@@ -949,13 +952,19 @@ class MosaicPanel(FigureCanvas):
         """ Loads a specific position list file.
                 If not provided, it will load the one currently specified in the
                 GUI.
+            args:
+                position_file (Optional[str]): position file path (.json)
         """
         if position_file:
             self.set_position_file(position_file)
         self.parent.on_array_load()
 
     def save_position_list(self, path):
-        """ Saves the position list to a specified path. """
+        """ Saves the position list to a specified path.
+
+            args:
+                path (str): path to save position list (.json)
+        """
         #I'm not sure what this transfromed stuff does but 
         # i'm keeping it until i know
         if self.parent.save_transformed.IsChecked():
@@ -966,6 +975,9 @@ class MosaicPanel(FigureCanvas):
 
     def get_current_acquisition_settings(self):
         """ Gets all the data required to re-create this acquisition.
+
+            Returns:
+                dict: all settings required to re-create this acquisition
         """
         dir_settings = self.directory_settings.__dict__
         return {
@@ -979,14 +991,27 @@ class MosaicPanel(FigureCanvas):
 
     def save_acquisition_settings(self, path):
         """ Saves the acquisition settings to a specified yaml path.
+
+            Args:
+                path (str): path to output file (.yaml)
+
+            Returns:
+                dict: the settings that were saved.
         """
         settings = self.get_current_acquisition_settings()
         import yaml  #DW should i move this import to top?
         with open(path, 'w') as f:
             yaml.dump(settings, f, default_flow_style=False)
+        return settings
 
     def load_acquisition_settings(self, path):
         """ Loads acquisition settings from a specified yaml path.
+
+            Args:
+                path (str): path to settings file (.yaml)
+
+            Returns:
+                dict: the settings that were loaded.
         """
         import yaml
         with open(path, 'r') as f:
@@ -996,6 +1021,7 @@ class MosaicPanel(FigureCanvas):
         self.load_directory_settings(settings['directory_settings'])
         self.load_channel_settings(settings['channel_settings'])
         # load MM config?  probably shouldn't
+        return settings
 
     def setup_complete(self, event=None):
         """ Callback for batman button (used to start acquisition)
@@ -1011,8 +1037,27 @@ class MosaicPanel(FigureCanvas):
         self.posone_plot.clear()
         self.postwo_plot.clear()
 
+    def move_to_cassette(self, cassette_index=0):
+        """ Moves to a specific cassette slot.
+
+            Args:
+                cassette_index (int): cassette slot to move to
+
+            Returns:
+                2-tuple: (x, y) position of target cassette
+        """
+        slot_positions = self.cfg['Stage_Settings']['slot_positions']
+        try:
+            pos = slot_positions[cassette_index]
+        except IndexError:
+            raise IndexError("No position for cassette index {} defined.".format(
+                cassette_index))
+        self.setStagePosition(*pos)
+        return pos
+
     def unload_arduino(self):
         # DW: basically something about the arduino is fucking up
+        #   and this could let me manually unload it
         self.imgSrc.mmc.unloadDevice("LaserArduino")
 
     def summarize_autofocus_settings(self):
