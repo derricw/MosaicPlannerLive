@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 import matplotlib.pyplot as plt
 import os
 from PIL import Image
@@ -48,6 +49,11 @@ class MyImage():
         cy=(top+bottom)/2;
         
         self.imagePath=f["imagePath"]["path"]
+        if not os.path.isfile(self.imagePath):
+            alt_path = filename.replace("_metadata.txt", ".tif")
+            if not os.path.isfile(alt_path):
+                raise IOError("Metadata points to non-existent file: {}".format(self.imagePath))
+            self.imagePath = alt_path
         self.format=f["imagePath"]["format"]
         self.boundBox=Rectangle(left,right,top,bottom)
 
@@ -214,7 +220,7 @@ class ImageCollection():
             (thedata,bbox)=self.imageSource.take_image(x,y)
             if thedata.dtype == np.uint16:
                 print "converting"
-                maxval=self.imageSource.get_max_pixel_value()
+                #maxval=self.imageSource.get_max_pixel_value()
                 thedata=self.lut_convert16as8bit(thedata,0,60000)
             
         except:
@@ -228,6 +234,18 @@ class ImageCollection():
         #add this image to the collection
         theimage=self.add_image(thedata,bbox)
         return theimage
+
+    def add_image_to_path(self,x,y,path):
+        try:
+            (data,bbox) = self.imageSource.take_image(x,y)
+            # if data.dtype == np.uint16:
+            #     maxval = self.imageSource.get_max_pixel_value()
+            #     data = self.lut_convert16as8bit(data,0,60000)
+            imsave(path, data)
+            return data
+        except Exception as e:
+            print("Failed to add image to path: {}".format(e))
+
         
         
     def get_cutout_from_source(self,box):
@@ -312,52 +330,22 @@ class ImageCollection():
             
     def load_image_collection(self):
         #list all metadata files in rootdir
-        testimage=self.imageClass()
+        #testimage=self.imageClass()  # DW: what is this for?
         if not os.path.isdir(self.rootpath):
             os.makedirs(self.rootpath)
         
         metafiles=[os.path.join(self.rootpath,f) for f in os.listdir(self.rootpath) if f.endswith('.txt') ]
         
-        print "loading metadata"
+        print("loading metadata")
         #loop over files reading in metadata, and initializing Image objects, reading images to update display
-        for file in metafiles:
-            print file
+        for metafile in metafiles:
             theimage=self.imageClass()
-            theimage.load_from_metadata(file)
+            theimage.load_from_metadata(metafile)
             self.images.append(theimage)
             data=theimage.get_data()
             self.add_image_to_display(data,theimage.boundBox)
             self.imgCount+=1
+            logging.debug("Loaded img data from {}".format(metafile))
      
-            
-        
-        del(testimage)
+        #del(testimage)
       
-# filename="C:\Users\Smithlab\Documents\ASI_LUM_RETIGA_CRISP.cfg"
-# imgsrc=imageSource(filename)
-# channels=imgsrc.get_channels()
-# imgsrc.set_channel('Violet')
-# imgsrc.set_exposure(250)
-
-# plt.axis()
-# rootPath='C:\\Users\\Smithlab\\Documents\\ImageCollectTest\\'
-# figure = plt.figure(1,figsize=(5,14))
-# axes = figure.get_axes()
-
-# ic=ImageCollection(rootpath=rootPath,imageSource=imgsrc,axis=axes[0])
-# ic.load_image_collection()
-# box=Rectangle(-50,50,-50,50)
-# data2=ic.get_cutout(box)
-
-# box=Rectangle(-140,-90,0,50)
-# data2=ic.get_cutout(box)
-
-# box=Rectangle(-340,-240,0,50)
-# data2=ic.get_cutout(box)
-
-# box=Rectangle(-740,-740,0,50)
-# data2=ic.get_cutout(box)
-
-# plt.show()
-
-        

@@ -67,7 +67,7 @@ class posListSchema(mm.Schema):
     dosort = mm.fields.Bool(required=False,default=True)
     numberDisplaySettings = mm.fields.Nested(NumberDisplaySettingsSchema)
 
-class posList():
+class PosList():
     """class for holding, altering, and plotting the position list"""
     def __init__(self,axis,mosaic_settings=MosaicSettings(),camera_settings=CameraSettings(),
                  numberDisplaySettings=NumberDisplaySettings(),dosort=True):
@@ -529,6 +529,8 @@ class posList():
             rownum += 1          
         ifile.close() 
         self.updateNumbers()
+        self.load_frame_state_table(filename)
+
     def add_from_file_OMX(self,filename):
         """add points to the position list from an OMX position list file
         
@@ -558,6 +560,7 @@ class posList():
             rownum += 1          
         ifile.close() 
         self.updateNumbers()
+        self.load_frame_state_table(filename)
     
     def add_from_file_ZEN(self,filename):
         """add points to the position list from an OMX position list file
@@ -586,6 +589,7 @@ class posList():
             rownum += 1          
         ifile.close() 
         self.updateNumbers()
+        self.load_frame_state_table(filename)
         
     def add_from_file_SmartSEM(self,filename):
         """add points to the position list from a Smart SEM position list file
@@ -643,6 +647,7 @@ class posList():
         self.set_mosaic_settings(self.mosaic_settings)
         ifile.close()
         self.updateNumbers()
+        self.load_frame_state_table(filename)
 
     def load_frame_state_table(self,filename):
         filename, formattype = filename.split('.')
@@ -685,7 +690,7 @@ class posList():
             else:
                 (xt,yt)=trans.transform(pos.x,pos.y)
                 writer.writerow(["%d"%(100000+index),xt,yt,pos.z," blue "," blue "])
-    
+
     
     def save_position_list_uM(self,filename,trans=None):
         self.__sort_points()
@@ -833,10 +838,21 @@ class posList():
                 writer.writerow(['%03d: %f'%(index,pos.x),pos.y,Z])    
             else:
                 (xt,yt)=trans.transform(pos.x,pos.y)
-                writer.writerow(['%03d: %f'%(index,xt),yt,Z])  
+                writer.writerow(['%03d: %f'%(index,xt),yt,Z])
 
-    def save_position_list_JSON(self,filename,trans=None): #MultiRibbons
+    def save_position_list_JSON(self,filename,trans=None):
         #save the positionlist to JSON format, include position x, y, angle, mosaic settings, channel settings
+        data = self.get_position_list_dict(trans=trans)
+
+        thestring=json.JSONEncoder().encode(data)
+        file = open(filename,'w')
+        file.write(thestring)
+        file.close()
+        self.on_save_frame_state_table(filename)
+
+    def get_position_list_dict(self, trans=None):
+        """ Gets a dictionary of the position data for easy serialization.
+        """
         self.__sort_points()
 
         poslist=[]
@@ -844,22 +860,19 @@ class posList():
 
             if trans == None:
                 posdict={"SECTION": "%d"%(100000+index),"X": pos.x,"Y": pos.y,"ANGLE": pos.angle}
-
             else:
                 (xt,yt)=trans.transform(pos.x,pos.y)
                 posdict={"SECTION": "%d"%(100000+index),"X": xt,"Y": yt,"ANGLE": pos.angle}
 
             poslist.append(posdict)
 
-        dict={"MOSAIC": {"MOSAICX": self.mosaic_settings.mx,"MOSAICY": self.mosaic_settings.my,"OVERLAP": self.mosaic_settings.overlap},
-        "CHANNELS": {},
-        "POSITIONS":poslist}
-
-        thestring=json.JSONEncoder().encode(dict)
-        file = open(filename,'w')
-        file.write(thestring)
-        file.close()
-
+        return {
+            "MOSAIC": {"MOSAICX": self.mosaic_settings.mx,
+                       "MOSAICY": self.mosaic_settings.my,
+                       "OVERLAP": self.mosaic_settings.overlap},
+            #"CHANNELS": {}, # DW: I don't think this does anything...
+            "POSITIONS":poslist,
+        }
 
     def on_save_frame_state_table(self,filepath):
 
@@ -1005,7 +1018,7 @@ class posList():
             pos.destroy()
             del pos
 
-
+posList = PosList
 
 class slicePosition():
     """class which contains information about a single position in the position list, and is responsible for keeping 

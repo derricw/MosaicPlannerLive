@@ -8,7 +8,7 @@ import datetime
 import os
 from MMArduino import MMArduino
 
-class imageSource():
+class ImageSource():
     
     def __init__(self,configFile,channelGroupName='Channels',
                  use_focus_plane  = False, focus_points=None,
@@ -69,7 +69,25 @@ class imageSource():
             self.mmc.stopPropertySequence(filtswitch,'State')
             self.mmc.setConfig('Triggering','Software')
             self.mmc.setConfig('Triggering','Software')
-        #set the exposure to use
+
+
+    @property
+    def objective(self):
+        """ The microscope objective device.
+        """
+        return self.mmc.getFocusDevice()
+
+    @property
+    def stage(self):
+        """ The microscope XY stage.
+        """
+        return self.mmc.getXYStageDevice()
+
+    @property
+    def hw_autofocus(self):
+        """ The microscope HW autofocus.
+        """
+        return self.mmc.getAutoFocusDevice()
 
     def reset_piezo(self,cfg):
 
@@ -135,6 +153,12 @@ class imageSource():
         self.mmc.stopSequenceAcquisition()
         self.mmc.setConfig('Triggering','Software')
         self.mmc.setConfig('Triggering','Software')
+
+    def is_hardware_triggering(self):
+        if self.mmc.getCurrentConfig('Triggering') == 'Hardware':
+            return True
+        else:
+            return False
 
     def setup_hardware_triggering(self,channels,exposure_times):
 
@@ -338,28 +362,23 @@ class imageSource():
         #    x = -x
         #if flipy == 1:
         #    y = -y
-        
-        stg=self.mmc.getXYStageDevice()
-        self.mmc.setXYPosition(stg,x,y)
-        self.mmc.waitForDevice(stg)
+
+        self.mmc.setXYPosition(self.stage, x, y)
+        self.mmc.waitForDevice(self.stage)
         #print self.get_xy()
         
 
 
     def get_xy_flip(self):
-        xystg=self.mmc.getXYStageDevice()
-        flipx=int(self.mmc.getProperty(xystg,"TransposeMirrorX"))==1
-        flipy=int(self.mmc.getProperty(xystg,"TransposeMirrorY"))==1
+        flipx=int(self.mmc.getProperty(self.stage,"TransposeMirrorX"))==1
+        flipy=int(self.mmc.getProperty(self.stage,"TransposeMirrorY"))==1
 
         return flipx,flipy
     def get_xy(self):
-        #NEED TO IMPLEMENT IF NOT MICROMANAGER
-        xystg=self.mmc.getXYStageDevice()
-        
         flipx,flipy = self.get_xy_flip()
 
-        x=self.mmc.getXPosition(xystg)
-        y=self.mmc.getYPosition(xystg)
+        x=self.mmc.getXPosition(self.stage)
+        y=self.mmc.getYPosition(self.stage)
 
         if self.transpose_xy:
             xt = x
@@ -373,12 +392,11 @@ class imageSource():
 
         return (x,y)
     def get_z(self):
-        focus_stage=self.mmc.getFocusDevice()
-        return self.mmc.getPosition(focus_stage)
+        return self.mmc.getPosition(self.objective)
+
     def set_z(self,z):
-        focus_stage=self.mmc.getFocusDevice()
-        self.mmc.setPosition (focus_stage,z)
-        self.mmc.waitForDevice(focus_stage)
+        self.mmc.setPosition (self.objective,z)
+        self.mmc.waitForDevice(self.objective)
         
     def get_pixel_size(self):
         #NEED TO IMPLEMENT IF NOT MICROMANAGER
@@ -447,7 +465,6 @@ class imageSource():
         data = self.flip_image(data)
         return data
 
-
     def flip_image(self,data):
 
         (flipx,flipy,trans) = self.get_image_flip()
@@ -508,7 +525,7 @@ class imageSource():
 
     def move_safe_and_focus(self,x,y): #MultiRibbons
         #lower objective, move the stage to position x,y
-        focus_stage=self.mmc.getFocusDevice()
+        focus_stage = self.objective
         #self.mmc.setRelativePosition(focus_stage,-3000.0)
         for j in range(300): #use small z steps to lower objective slowly
             self.mmc.setRelativePosition(-10.0)
@@ -518,8 +535,8 @@ class imageSource():
         time.sleep(1)
         self.set_xy_new(x,y)
         time.sleep(40)
-        stg=self.mmc.getXYStageDevice()
-        self.mmc.waitForDevice(stg)
+
+        self.mmc.waitForDevice(self.stage)
         #self.mmc.setRelativePosition(focus_stage,2700.0)
         for j in range(310): #use small z steps to raise objective slowly
             self.mmc.setRelativePosition(10.0)
@@ -538,6 +555,57 @@ class imageSource():
             if i==20:
                 break
 
+    def focus_search(self,
+                     search_range=320,
+                     step=20,
+                     settle_time=1.0,
+                     attempts=3):
+
+        low = -search_range/2
+        high = search_range/2
+        focus_stage=self.objective
+        original_position=self.mmc.getPosition(focus_stage)
+
+        # check if it is already at the optimal spot
+        time.sleep(settle_time)
+        if self.attempt_focus(settle_time):
+            return self.mmc.getPosition(focus_stage)
+
+        # search `attempt` times
+        for attempt in range(attempts):
+            self.mmc.setRelativePosition(focus_stage, low)
+            self.mmc.waitForDevice(focus_stage)
+
+            # search from low to high
+            for i in range(low, high, step):
+                self.mmc.setRelativePosition(focus_stage, step)
+                self.mmc.waitForDevice(focus_stage)
+                time.sleep(settle_time)
+                if self.attempt_focus(settle_time):
+                    return self.mmc.getPosition(focus_stage)
+
+            # return to original position after every attempt
+            self.mmc.setPosition (focus_stage, original_position)
+            self.mmc.waitForDevice(focus_stage)
+
+        # all attempts failed
+        raise Exception("Couldn't find hardware focus.")
+
+    def attempt_focus(self, settle_time=1.0):
+        self.mmc.enableContinuousFocus(True)
+        #self.mmc.waitForDevice(self.mmc.getAutoFocusDevice())
+        time.sleep(settle_time)
+        if self.mmc.isContinuousFocusEnabled():
+            for i in range(10):
+                time.sleep(0.1)
+                if self.mmc.isContinuousFocusLocked():
+                    return True
+        return False
+        #return self.mmc.isContinuousFocusLocked()
+
+
+
+
     def set_xy_new(self,x,y,use_focus_plane=False): #MultiRibbons
         # modified version of set_xy to be called by move_safe_and_focus with removed self.mmc.waitForDevice(stg)
         # to avoid error when waiting time exceeds 5s
@@ -555,8 +623,7 @@ class imageSource():
         #if flipy == 1:
         #    y = -y
 
-        stg=self.mmc.getXYStageDevice()
-        self.mmc.setXYPosition(stg,x,y)
+        self.mmc.setXYPosition(self.stage, x, y)
         #self.mmc.waitForDevice(stg)
 
     def set_autofocus_offset(self,offset): #MultiRibbons
@@ -570,3 +637,5 @@ class imageSource():
     
     def shutdown(self):
         self.mmc.unloadAllDevices()
+
+imageSource = ImageSource  #DW: i fixed the name but wanted to preserve backwards compatibility

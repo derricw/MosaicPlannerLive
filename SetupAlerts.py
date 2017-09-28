@@ -1,6 +1,8 @@
 
 # -*- coding: utf-8 -*-
-# based on pyqtgraph\examples\ImageItem.py
+"""
+Email alert sender.
+"""
 from PyQt4 import QtCore, QtGui, uic
 import os.path
 

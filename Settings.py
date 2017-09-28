@@ -20,6 +20,8 @@ import wx
 import os
 import json
 import marshmallow as mm
+import logging
+import yaml
 
 class DirectorySettings():
 
@@ -54,52 +56,69 @@ class DirectorySettings():
         self.Slot_num = cfg['Directories']['Slot_num']
         self.meta_experiment_name = cfg['Directories']['meta_experiment_name']
 
-    def create_directory(self,cfg,kind):
+    def create_directory(self,cfg,kind="data"):
         root = self.default_path
         print 'root:', root
         if kind == 'map':
-            map_folder = os.path.join(root,self.Sample_ID,'raw','map','Ribbon%04d'%self.Ribbon_ID,'map%01d'%self.Map_num)
+            map_folder = self.get_map_folder()
             if not os.path.exists(map_folder):
                 os.makedirs(map_folder)
                 cfg['MosaicPlanner']['default_imagepath'] = map_folder
-                # return map_folder
             else:
-                # return map_folder
                 cfg['MosaicPlanner']['default_imagepath'] = map_folder
+            return map_folder
         elif kind == 'data':
-            data_folder = os.path.join(root,self.Sample_ID,'raw','data','Ribbon%04d'%self.Ribbon_ID,'session%02d'%self.Session_ID)
+            data_folder = self.get_data_folder()
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
-                return data_folder
             else:
-                dlg = wx.MessageDialog(None,message = "Path already exists! Do you wish to continue?",caption = "Directory Warning",style = wx.YES|wx.NO)
-                button_pressed = dlg.ShowModal()
-                if button_pressed == wx.ID_YES:
-                    return data_folder
-                elif button_pressed == wx.ID_NO:
-                    box = wx.MessageDialog(None,message = 'Aborting Acquisition')
-                    box.ShowModal()
-                    box.Destroy()
-                    return None
-        elif kind == 'multi_map':
-            map_folder = os.path.join(root,self.Sample_ID,'raw','map','multi_ribbon_round','map%02d'%self.Map_num)
-            if not os.path.exists(map_folder):
-                os.makedirs(map_folder)
-                cfg['MosaicPlanner']['default_imagepath'] = map_folder
-            else:
-                cfg['MosaicPlanner']['default_imagepath'] = map_folder
+                logging.info("Path already exists: {}".format(data_folder))
+            return data_folder
         else:
-            dlg = wx.MessageBox(self,caption = 'Error',message = "Directory must be either \'map\' or \'data\' \n Aborting Acquisition")
-            return None
+            raise Exception("Please choose correct folder type.")
+
+    def get_data_folder(self):
+        root = self.default_path
+        return os.path.join(root,self.Sample_ID,'raw','data','Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
+
+    def get_map_folder(self):
+        root = self.default_path
+        return os.path.join(root,self.Sample_ID,'raw','map','Ribbon{}'.format(self.Ribbon_ID),'map{}'.format(self.Map_num))
+
+
+class SessionSettings():
+    def __init__(self,meta_experiment_name = None,Ribbon_num = None,outdirdict = None,mapdirdict = None,arrayfiledict = None,channel_settings = None,pointer = None,**kwargs):
+        self.meta_experiment_name = meta_experiment_name
+        self.Ribbon_num = Ribbon_num
+        self.channel_settings = channel_settings
+        self.outdirdict = outdirdict
+        self.mapdirdict = mapdirdict
+        self.arrayfiledict = arrayfiledict
+        self.pointer = pointer
+
+    def to_file(self,filetype ='.yaml'):
+        data = {'Meta Experiment' : self.meta_experiment_name,
+                    'Ribbon Number': self.Ribbon_num,
+                    'Data Filepaths' : self.outdirdict,
+                    'Map Directories': self.mapdirdict,}
+        filename = self.pointer + 'session.yml'
+        with open(filename,'w') as outfile:
+            yaml.dump(data,outfile,default_flow_style = False)
+        outfile.close()
+
+
+
 
 
 class RibbonNumberDialog(wx.Dialog):
+    """ #DCW No longer used.
+    """
     def __init__(self,parent,id,style,title = "Enter Number of Ribbons"):
         wx.Dialog.__init__(self,parent,id,title,style = wx.DEFAULT_DIALOG_STYLE, size = (200,75))
         vbox = wx.BoxSizer(wx.VERTICAL)
 
         self.RibbonNum_txt = wx.StaticText(self,label = "Number of Ribbons:")
-        self.RibbonNum_IntCtrl = wx.lib.intctrl.IntCtrl(self,value = 1, min = 1, max = None, allow_none = False)
+        self.RibbonNum_IntCtrl = wx.lib.intctrl.IntCtrl(self,value = 1, min = 1, max = 8, allow_none = False)
 
         ok_button = wx.Button(self,wx.ID_OK,'OK')
         cancel_button = wx.Button(self,wx.ID_CANCEL,'Cancel')
@@ -117,6 +136,36 @@ class RibbonNumberDialog(wx.Dialog):
         val = self.RibbonNum_IntCtrl.GetValue()
         return val
 
+class MapSettingsDialog(wx.Dialog):
+    """ #DCW: Is this for multi-ribbon? Do we need it anymore?
+    """
+    def __init__(self,parent,id,mapdict,title = "Choose Ribbon to Map:"):
+        wx.Dialog.__init__(self,parent,id,title,style = wx.DEFAULT_DIALOG_STYLE, size = (300,80))
+        vbox = wx.BoxSizer(wx.VERTICAL)
+
+        self.mapdict = mapdict
+        self.mappaths = []
+        for key,value in self.mapdict.iteritems():
+            self.mappaths.append(self.mapdict[key])
+        self.mapchoice_combobox = wx.ComboBox(self,-1, pos=(170, 170), size=(300, -1), choices= self.mappaths,value = self.mappaths[0], style=wx.CB_READONLY)
+        ok_button = wx.Button(self,wx.ID_OK)
+        hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+
+
+
+        # hbox1.Add(self.mapchoice_txt)
+        hbox1.Add(self.mapchoice_combobox)
+        hbox2.Add(ok_button,0,wx.CENTER)
+        vbox.Add(hbox1)
+        vbox.Add(hbox2)
+
+        self.SetSizer(vbox)
+        self.Centre()
+
+    def GetValue(self):
+        mapchoice = self.mapchoice_combobox.GetValue()
+        return mapchoice
 
 
 
@@ -463,8 +512,8 @@ class CameraSettings():
 
 class ChannelSettings():
     """simple struct for containing the parameters for the microscope"""
-    def __init__(self,channels,exposure_times=dict([]),zoffsets=dict([]),
-                 usechannels=dict([]),prot_names=dict([]),map_chan=None,
+    def __init__(self,channels,exposure_times={},zoffsets={},
+                 usechannels={},prot_names={},map_chan=None,
                  def_exposure=100,def_offset=0.0,):
         #def_exposure is default exposure time in msec
        
@@ -474,7 +523,6 @@ class ChannelSettings():
         self.def_offset=def_offset
         
         self.exposure_times=exposure_times
-        self.zoffsets=zoffsets
         self.usechannels=usechannels
         self.prot_names=prot_names
 
@@ -492,7 +540,6 @@ class ChannelSettings():
         cfg['ChannelSettings']['map_chan']=self.map_chan
         for ch in self.channels:
             cfg['ChannelSettings']['Exposure_'+ch]=self.exposure_times[ch]
-            cfg['ChannelSettings']['ZOffsets_'+ch]=self.zoffsets[ch]
             cfg['ChannelSettings']['UseChannel_'+ch]=self.usechannels[ch]
             cfg['ChannelSettings']['ProteinNames_'+ch]=self.prot_names[ch]
         cfg.write()
@@ -500,7 +547,6 @@ class ChannelSettings():
     def load_settings(self,cfg):
         for ch in self.channels:
             self.exposure_times[ch]=cfg['ChannelSettings'].get('Exposures_'+ch,self.def_exposure)
-            self.zoffsets[ch]=cfg['ChannelSettings'].get('ZOffsets_'+ch,self.def_offset)
             self.usechannels[ch]=cfg['ChannelSettings'].get('UseChannel_'+ch,True)
             self.prot_names[ch]=cfg['ChannelSettings'].get('ProteinNames_'+ch,ch)
 
@@ -794,7 +840,7 @@ class ChangeSEMSettings(wx.Dialog):
 
 class MultiRibbonSettings(wx.Dialog): #MultiRibbons
     """dialog for setting multiribbon aquisition"""
-    def __init__(self, parent, id, ribbon_number,slot_labels, title, settings,style):
+    def __init__(self, parent, id, ribbon_number,slot_labels, title,style):
         wx.Dialog.__init__(self, parent, id, title,style=wx.DEFAULT_DIALOG_STYLE, size=(1000, 300))
 
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -836,7 +882,6 @@ class MultiRibbonSettings(wx.Dialog): #MultiRibbons
             #pathway[i]=self.RibbonFilePath[i].GetPath()
             newpath=self.RibbonFilePath[i].GetPath()
             pathway.append(newpath)
-            print 'new path length:', len(newpath)
             if len(newpath) == 0:
                 self.ToImageList.append(False)
             else:
