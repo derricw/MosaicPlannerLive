@@ -26,6 +26,7 @@ class ImageSource():
         currpath=os.path.split(os.path.realpath(__file__))[0]
         self.mmc.setPrimaryLogFile(os.path.join(currpath,logfile))
         self.mmc.loadSystemConfiguration(self.configFile)
+        self.mmc.setTimeoutMs(30000)
        
         self.channelGroupName=channelGroupName
         self.transpose_xy = transpose_xy

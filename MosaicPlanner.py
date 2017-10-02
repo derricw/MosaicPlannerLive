@@ -415,6 +415,11 @@ class MosaicPanel(FigureCanvas):
         self.directory_settings = DirectorySettings()
         self.directory_settings.load_settings(config)
 
+        # Acquiring flag so remote control can know if we're in
+        # an acquisition
+        self._is_acquiring = False
+        self._frame_count = 0
+
         # DW, we don't want to do this unless we have to.
         # self.edit_Directory_settings()
         # dictvalue = self.get_output_dir(self.directory_settings)
@@ -821,14 +826,15 @@ class MosaicPanel(FigureCanvas):
         return Stage_Settings_Summary
 
     def summarize_channel_settings(self):
+        """ Gets number of active channels and total exposure time.
+        """
         numchan = 0
-        chrom_correction = False
+        exposure_time = 0.0
         for ch in self.channel_settings.channels:
             if self.channel_settings.usechannels[ch]:
                 numchan+=1
-                if (self.channel_settings.zoffsets[ch] != 0.0):
-                    chrom_correction = True
-        return numchan,chrom_correction
+                exposure_time += self.channel_settings.exposure_times[ch]
+        return numchan, exposure_time
 
     def load_channel_settings(self, settings):
         """ Loads channel settings from ChannelSettings object,
@@ -1055,6 +1061,42 @@ class MosaicPanel(FigureCanvas):
         self.setStagePosition(*pos)
         return pos
 
+    def move_to_oil_position(self, index=None):
+        """ Moves to a specific oil position.  If None specified,
+                moves to the closest.
+
+            args:
+                index (Optional[int]): index of target oil position.
+
+            returns:
+                2-tuple: (x,y) for chosen stage position
+        """
+
+        def dist2d(p0, p1):
+            """ Distance between two 2d points. """
+            x0, y0 = p0
+            x1, y1 = p1
+            return np.sqrt((x1-x0)**2 + (y1-y0)**2)
+
+        def get_nearest(source, pos_list):
+            """ Finds nearest point in position list to source position."""
+            distances = [dist2d(source, pos) for pos in pos_list]
+            val, i = min((val, i) for (i, val) in enumerate(distances))
+            return pos_list[i]
+
+        pos_list = self.cfg['Stage_Settings']['oiling_positions']
+        if not pos_list:
+            raise ValueError("No oiling positions configured.")
+        if index is None:
+            source = self.getStagePosition()
+            pos = get_nearest(source, pos_list)
+        else:
+            pos = pos_list[index]
+
+        self.setStagePosition(*pos)
+        return pos
+
+
     def unload_arduino(self):
         # DW: basically something about the arduino is fucking up
         #   and this could let me manually unload it
@@ -1099,6 +1141,28 @@ class MosaicPanel(FigureCanvas):
         style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME | wx.PD_AUTO_HIDE)
 
         return numFrames,numSections
+
+    def get_remaining_frames(self):
+        """ Gets number of frames remaining in the acquisition.
+        """
+        if not self._is_acquiring:
+            return 0
+
+        current_frame_count = self._frame_count
+        
+        total_sections = len(self.posList.slicePositions)
+        frames_per_section = len(self.posList.slicePositions[0].frameList.slicePositions)
+        total_frames = total_sections * frames_per_section
+
+        return total_frames - current_frame_count
+
+    def get_remaining_time(self):
+        """ Gets time remaining in the acquisition with the current settings.
+        """
+        _, exposure_time = self.summarize_channel_settings()
+        remaining_frames = self.get_remaining_frames()
+        stage_step = 200 #ms
+        return (stage_step + exposure_time) / 1000.0 * remaining_frames
 
     def get_output_dir(self,directory_settings):
         assert(isinstance(directory_settings, DirectorySettings))
@@ -1245,11 +1309,12 @@ class MosaicPanel(FigureCanvas):
     def on_run_acq(self,outdir=None,event="none"):
         """ Main acquisition loop.
         """
-        print "running"
+        print("running")
 
         self.imgSrc.set_binning(1)
         binning=self.imgSrc.get_binning()
-        numchan,chrom_correction = self.summarize_channel_settings()
+        numchan, _ = self.summarize_channel_settings()
+        chrom_correction = False  # can we get rid of this?
 
         if not outdir:
             outdir = self.directory_settings.get_data_folder()
@@ -1286,8 +1351,8 @@ class MosaicPanel(FigureCanvas):
             #iterates over channels/exposure times in appropriate order
             channels = [ch for ch in self.channel_settings.channels if self.channel_settings.usechannels[ch]]
             exp_times = [self.channel_settings.exposure_times[ch] for ch in self.channel_settings.channels if self.channel_settings.usechannels[ch]]
-            print channels
-            print exp_times
+            print(channels)
+            print (exp_times)
             success=self.imgSrc.setup_hardware_triggering(channels,exp_times)
         else:
             success = False
@@ -1301,6 +1366,7 @@ class MosaicPanel(FigureCanvas):
 
 
         #loop over positions
+        self._is_acquiring = True
         for i,pos in enumerate(self.posList.slicePositions):
             if i==(len(self.posList.slicePositions)-1):
                     self.slack_notify('last section imaging beginning')
@@ -1368,6 +1434,7 @@ class MosaicPanel(FigureCanvas):
                                 #time.sleep(0.1)
                                 wx.Yield()
                         #======================================================
+                        self._frame_count += 1
 
                 wx.Yield()
         if not goahead:
@@ -1389,6 +1456,9 @@ class MosaicPanel(FigureCanvas):
         self.imgSrc.set_binning(2)
         if (self.cfg['MosaicPlanner']['hardware_trigger']):
             self.imgSrc.stop_hardware_triggering()
+
+        self._is_acquiring = False
+        self._frame_count = 0
 
     def edit_channels(self,event="none"):
         dlg = ChangeChannelSettings(None, -1, title = "Channel Settings", settings = self.channel_settings,style=wx.OK)
@@ -2020,10 +2090,6 @@ class MosaicPanel(FigureCanvas):
     # def getZPosition(self):
     #     zPosition = self.imgSrc.get_z()
     #     return zPosition
-
-    def getRemainingImagingTime(self):
-        remainingTime = wx.PD_REMAINING_TIME
-        return remainingTime
 
     def remoteSavePositionListJSON(self, trans=None):
         if self.cfg['MosaicPlanner']['default_arraypath']:

@@ -165,8 +165,7 @@ class RemoteInterface(Publisher):
     def get_remaining_time(self):
         """ Returns remaining acquisition time.
         """
-        remainingTime = self.parent.getRemainingImagingTime()
-        return remainingTime
+        return self.parent.get_remaining_time()
 
     def get_current_acquisition_settings(self):
         """ Gets the current imaging session metadata.
@@ -232,7 +231,13 @@ class RemoteInterface(Publisher):
             # Include map#?
         }
 
-    def save_acquisition_settings(self, path):
+    def save_acquisition_settings(self, path=""):
+        if not path:
+            dir_settings = self.get_directory_settings()
+            path = os.path.join(dir_settings['root_dir'],
+                                dir_settings['sample_id'],
+                                dir_settings['ribbon_id'],
+                                "{}.yaml".format(dir_settings['session_id']))
         self.parent.save_acquisition_settings(path)
 
     def load_acquisition_settings(self, path):
@@ -265,8 +270,17 @@ class RemoteInterface(Publisher):
 
     def move_to_cassette(self, cassette_index=0):
         """ Moves to the specified cassette.
+
+            #TODO: Should we disconnect objective?
+
         """
         return self.parent.move_to_cassette(cassette_index)
+
+    def move_to_oil_position(self, index=None):
+        """ Moves stage to specified oiling location.  If none,
+            moves to closest.
+        """
+        return self.parent.move_to_oil_position(index)
 
     def connect_objective(self, pos_z, speed=None):
         """ Connects the objective, moves to pos_z
@@ -301,9 +315,11 @@ class RemoteInterface(Publisher):
         """ Returns whether or not MP is acquiring
         """
         #return self.parent.acquiring
-        return False
+        return self.parent._is_acquiring
 
     def start_acquisition(self, data_dir=""):
+        self._rep_sock.send_json(True)
+        self.parent._is_acquiring = True
         self.parent.on_run_acq(data_dir)
 
     def check_bubbles(self, img_folder):
