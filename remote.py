@@ -156,9 +156,10 @@ class RemoteInterface(Publisher):
         """ Get objective speed
         """
 
-    def set_mm_timeout(self, ms):
+    def set_mm_timeout(self, sec):
         """ Sets MicroManager timeout
         """
+        ms = int(sec*1000)
         self.parent.imgSrc.mmc.setTimeoutMs(ms)
         logging.info("MicroManager timeout set to: {} ms".format(ms))
 
@@ -282,7 +283,7 @@ class RemoteInterface(Publisher):
         """
         return self.parent.move_to_oil_position(index)
 
-    def connect_objective(self, pos_z, speed=None):
+    def connect_objective(self, pos_z, speed=300000):
         """ Connects the objective, moves to pos_z
         """
         approach_offset = 4000.0 # configurable?
@@ -292,7 +293,7 @@ class RemoteInterface(Publisher):
         self.set_objective_z(pos_z, speed=speed)
 
 
-    def disconnect_objective(self, pos_z=None, speed=None):
+    def disconnect_objective(self, pos_z=None, speed=300000):
         approach_offset = 4000.0 #configurable?
         if pos_z is None:
             pos_z = approach_offset

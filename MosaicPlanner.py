@@ -516,7 +516,7 @@ class MosaicPanel(FigureCanvas):
         try:
             self.interface._check_rep()
         except Exception as e:
-            #print e  #UNCOMMENT IF MP STOPS COMMUNICATING
+            import traceback; traceback.print_exc()  #UNCOMMENT IF MP STOPS COMMUNICATING
             pass
 
     def setZPosition(self,position, wait=True):
@@ -1201,7 +1201,9 @@ class MosaicPanel(FigureCanvas):
 
     def execute_imaging(self,pos_list,numFrames,numSections,channel_settings,chrome_correction,sample_information,mosaic_settings,zstack_settings,acquisition_settings,
                         stage_reset_settings,autofocus_settings):
-
+        """ DW: This appears to be an old version of on_run_acq.  I don't think it is used and
+                could probably be deleted...
+        """
 
         assert(isinstance(zstack_settings, ZstackSettings))
         assert(isinstance(channel_settings, ChannelSettings))
@@ -1235,10 +1237,10 @@ class MosaicPanel(FigureCanvas):
                 else:
                     for j,fpos in enumerate(pos.frameList.slicePositions):
                         if not goahead:
-                            print "breaking out!"
+                            print("breaking out!")
                             break
                         if not self.imgSrc.get_hardware_autofocus_state():
-                            print "autofocus no longer enabled while moving between frames.. quiting"
+                            print("autofocus no longer enabled while moving between frames.. quiting")
                             goahead = False
                             break
                         self.multiDacq(outdir,chrome_correction,fpos.x,fpos.y,current_z,i,j,hold_focus)
@@ -1247,10 +1249,10 @@ class MosaicPanel(FigureCanvas):
 
                 wx.Yield()
         if not goahead:
-            print "acquisition stopped prematurely"
-            print "section %d"%(i)
+            print("acquisition stopped prematurely")
+            print("section %d"%(i))
             if pos.frameList is not None:
-                print "frame %d"%(j)
+                print("frame %d"%(j))
 
         self.dataQueue.put(STOP_TOKEN)
         self.saveProcess.join()
