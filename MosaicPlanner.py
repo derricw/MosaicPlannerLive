@@ -934,6 +934,7 @@ class MosaicPanel(FigureCanvas):
         if folder:
             self.map_folder = folder
         self.on_load(folder)
+        return folder
 
     @property
     def position_list_path(self):
@@ -993,6 +994,7 @@ class MosaicPanel(FigureCanvas):
             "directory_settings": dir_settings,
             "datetime": datetime.datetime.now(),
             "micromanager_config": self.MM_config_file,
+            "objective_height": self.getZPosition(),
         }
 
     def save_acquisition_settings(self, path):
@@ -1010,18 +1012,21 @@ class MosaicPanel(FigureCanvas):
             yaml.dump(settings, f, default_flow_style=False)
         return settings
 
-    def load_acquisition_settings(self, path):
-        """ Loads acquisition settings from a specified yaml path.
+    def load_acquisition_settings(self, settings):
+        """ Applies acquisition settings from a specified yaml path or
+                pre-loaded dict.
 
             Args:
-                path (str): path to settings file (.yaml)
+                path (str, dict): path to settings file (.yaml) or settings dict
 
             Returns:
                 dict: the settings that were loaded.
         """
-        import yaml
-        with open(path, 'r') as f:
-            settings = yaml.load(f)
+        if isinstance(settings, (str, unicode)):
+            import yaml
+            with open(settings, 'r') as f:
+                settings = yaml.load(f)
+
         self.load_map(settings['map_folder'])
         self.load_position_list(settings['position_list_path'])
         self.load_directory_settings(settings['directory_settings'])
@@ -1032,7 +1037,10 @@ class MosaicPanel(FigureCanvas):
     def setup_complete(self, event=None):
         """ Callback for batman button (used to start acquisition)
         """
-        print("Setup complete!")
+        settings = self.get_current_acquisition_settings()
+        if self.interface:
+            self.interface.publish(settings)
+        # what else do?
 
     def clear_position_list(self):
         """ Clears the current position list.
@@ -1040,6 +1048,7 @@ class MosaicPanel(FigureCanvas):
         self.posList.select_all()
         self.posList.delete_selected()
         self.subplot.clear()
+        #self.canvas.clear()
         self.posone_plot.clear()
         self.postwo_plot.clear()
 
@@ -1169,7 +1178,7 @@ class MosaicPanel(FigureCanvas):
         #gets output directory for session
 
         cfg = self.cfg
-        path = directory_settings.create_directory(cfg,kind = 'data')
+        path = directory_settings.create_directory(cfg,kind='data')
         if path is not None:
             dlg=wx.DirDialog(self, message="Pick output directory", defaultPath=path)
             button_pressed = dlg.ShowModal()
@@ -1199,69 +1208,69 @@ class MosaicPanel(FigureCanvas):
     #     if button_pressed == wx.ID_CANCEL:
     #         return False
 
-    def execute_imaging(self,pos_list,numFrames,numSections,channel_settings,chrome_correction,sample_information,mosaic_settings,zstack_settings,acquisition_settings,
-                        stage_reset_settings,autofocus_settings):
-        """ DW: This appears to be an old version of on_run_acq.  I don't think it is used and
-                could probably be deleted...
-        """
+    # def execute_imaging(self,pos_list,numFrames,numSections,channel_settings,chrome_correction,sample_information,mosaic_settings,zstack_settings,acquisition_settings,
+    #                     stage_reset_settings,autofocus_settings):
+    #     """ DW: This appears to be an old version of on_run_acq.  I don't think it is used and
+    #             could probably be deleted...
+    #     """
 
-        assert(isinstance(zstack_settings, ZstackSettings))
-        assert(isinstance(channel_settings, ChannelSettings))
-        assert(isinstance(pos_list,PosList))
-        assert(type(autofocus_settings == dict))
-        assert(type(acquisition_settings == dict))
-        outdir = self.outdirdict[sample_information.Ribbon_ID]
+    #     assert(isinstance(zstack_settings, ZstackSettings))
+    #     assert(isinstance(channel_settings, ChannelSettings))
+    #     assert(isinstance(pos_list,PosList))
+    #     assert(type(autofocus_settings == dict))
+    #     assert(type(acquisition_settings == dict))
+    #     outdir = self.outdirdict[sample_information.Ribbon_ID]
 
-        binning = acquisition_settings['Binning']
+    #     binning = acquisition_settings['Binning']
 
-        numFrames,numSections = self.setup_progress_bar()
-        hold_focus = not (zstack_settings.zstack_flag or chrome_correction)
+    #     numFrames,numSections = self.setup_progress_bar()
+    #     hold_focus = not (zstack_settings.zstack_flag or chrome_correction)
 
-        # starting with cycling through positions
-        goahead = True
-        #loop over positions
-        for i,pos in enumerate(pos_list.slicePositions):
-            if pos.activated:
-                if not goahead:
-                    break
-                if not self.imgSrc.get_hardware_autofocus_state():
-                    print "autofocus not enabled when moving between sections.. "
-                    goahead=False
-                    break
-                (goahead, skip) = self.progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
-                #turn on autofocus
-                self.ResetPiezo()
-                current_z = self.imgSrc.get_z()
-                if pos.frameList is None:
-                    self.multiDacq(outdir,chrome_correction,pos.x,pos.y,current_z,i,hold_focus=hold_focus)
-                else:
-                    for j,fpos in enumerate(pos.frameList.slicePositions):
-                        if not goahead:
-                            print("breaking out!")
-                            break
-                        if not self.imgSrc.get_hardware_autofocus_state():
-                            print("autofocus no longer enabled while moving between frames.. quiting")
-                            goahead = False
-                            break
-                        self.multiDacq(outdir,chrome_correction,fpos.x,fpos.y,current_z,i,j,hold_focus)
-                        self.ResetPiezo()
-                        (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
+    #     # starting with cycling through positions
+    #     goahead = True
+    #     #loop over positions
+    #     for i,pos in enumerate(pos_list.slicePositions):
+    #         if pos.activated:
+    #             if not goahead:
+    #                 break
+    #             if not self.imgSrc.get_hardware_autofocus_state():
+    #                 print "autofocus not enabled when moving between sections.. "
+    #                 goahead=False
+    #                 break
+    #             (goahead, skip) = self.progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
+    #             #turn on autofocus
+    #             self.ResetPiezo()
+    #             current_z = self.imgSrc.get_z()
+    #             if pos.frameList is None:
+    #                 self.multiDacq(outdir,chrome_correction,pos.x,pos.y,current_z,i,hold_focus=hold_focus)
+    #             else:
+    #                 for j,fpos in enumerate(pos.frameList.slicePositions):
+    #                     if not goahead:
+    #                         print("breaking out!")
+    #                         break
+    #                     if not self.imgSrc.get_hardware_autofocus_state():
+    #                         print("autofocus no longer enabled while moving between frames.. quiting")
+    #                         goahead = False
+    #                         break
+    #                     self.multiDacq(outdir,chrome_correction,fpos.x,fpos.y,current_z,i,j,hold_focus)
+    #                     self.ResetPiezo()
+    #                     (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
 
-                wx.Yield()
-        if not goahead:
-            print("acquisition stopped prematurely")
-            print("section %d"%(i))
-            if pos.frameList is not None:
-                print("frame %d"%(j))
+    #             wx.Yield()
+    #     if not goahead:
+    #         print("acquisition stopped prematurely")
+    #         print("section %d"%(i))
+    #         if pos.frameList is not None:
+    #             print("frame %d"%(j))
 
-        self.dataQueue.put(STOP_TOKEN)
-        self.saveProcess.join()
-        print("save process ended")
-        self.progress.Destroy()
-        #self.progress.Close()
-        self.imgSrc.set_binning(2)
-        if self.cfg['MosaicPlanner']['hardware_trigger']:
-            self.imgSrc.stop_hardware_triggering()
+    #     self.dataQueue.put(STOP_TOKEN)
+    #     self.saveProcess.join()
+    #     print("save process ended")
+    #     self.progress.Destroy()
+    #     #self.progress.Close()
+    #     self.imgSrc.set_binning(2)
+    #     if self.cfg['MosaicPlanner']['hardware_trigger']:
+    #         self.imgSrc.stop_hardware_triggering()
 
 
 
@@ -1280,7 +1289,7 @@ class MosaicPanel(FigureCanvas):
                 message=self.cfg['Slack']['notify_list']
             self.slacker.chat.post_message(self.cfg['Slack']['slack_room'],'{} says: {}'.format(microscope,message))
 
-    def lookup_mountpoint(self,outdir):
+    def lookup_mountpoint(self, outdir):
         drive,tail = os.path.splitdrive(outdir)
         mountfile = os.path.join(drive,'mountpoint','mountpoint.json')
         with open(mountfile,'r') as fp:
@@ -2006,7 +2015,11 @@ class MosaicPanel(FigureCanvas):
 
 
 
-    def software_autofocus(self,acquisition_boolean = False, buttonpress = False): #MultiRibbons
+    def software_autofocus(self, acquisition_boolean=False, buttonpress=False):
+        """ Olga's autofocus routine.
+
+        TODO: read through this and see if i can get rid of some of it.
+        """
         if buttonpress:
             self.imgSrc.set_binning(1)
         print "software autofocus"

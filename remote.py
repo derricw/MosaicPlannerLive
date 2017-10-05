@@ -146,7 +146,7 @@ class RemoteInterface(Publisher):
 
     def set_objective_property(self, property, value):
         objective = self.parent.imgSrc.objective
-        return self.parent.imgSrc.mmc.setProperty(objective, property, value)
+        return self.parent.imgSrc.mmc.setProperty(objective, str(property), value)
 
     def set_objective_vel(self, vel):
         """ Sets objective move speed
@@ -185,8 +185,9 @@ class RemoteInterface(Publisher):
         """ Loads the map at the specified folder
                 or at the one currently specified in the GUI.
         """
-        self.parent.load_map(folder)
+        folder = self.parent.load_map(folder)
         self._current_map = folder
+        return folder
 
     def set_position_file(self, position_file):
         """ Sets the current array position file in the GUI.
@@ -218,7 +219,7 @@ class RemoteInterface(Publisher):
             "Session_ID": session_id,
             "Map_num": 0, # ??
             "Slot_num": 0,  #DW: what should i do with this?
-            "meta_experiment_name": "automated",
+            "meta_experiment_name": "mpe_automated",
         }
         self.parent.load_directory_settings(settings)
 
@@ -234,15 +235,19 @@ class RemoteInterface(Publisher):
 
     def save_acquisition_settings(self, path=""):
         if not path:
-            dir_settings = self.get_directory_settings()
-            path = os.path.join(dir_settings['root_dir'],
-                                dir_settings['sample_id'],
-                                dir_settings['ribbon_id'],
-                                "{}.yaml".format(dir_settings['session_id']))
-        self.parent.save_acquisition_settings(path)
+            path = self.acquisition_data_path
+        return self.parent.save_acquisition_settings(path), path
 
-    def load_acquisition_settings(self, path):
-        self.parent.load_acquisition_settings(path)
+    @property
+    def acquisition_data_path(self):
+        dir_settings = self.get_directory_settings()
+        return os.path.join(dir_settings['root_dir'],
+                            dir_settings['sample_id'],
+                            "{}_{}.yaml".format(dir_settings['ribbon_id'],
+                                                dir_settings['session_id']))
+
+    def load_acquisition_settings(self, settings):
+        self.parent.load_acquisition_settings(settings)
 
     def sample_nearby(self, pos=None, folder="", size=3):
         """ Samples a grid of images and saves them to a specified folder.
@@ -282,6 +287,11 @@ class RemoteInterface(Publisher):
             moves to closest.
         """
         return self.parent.move_to_oil_position(index)
+
+    def move_to_z_and_focus(self, z=None):
+        if z is not None:
+            self.set_objective_z(z)
+        self.parent.software_autofocus()
 
     def connect_objective(self, pos_z, speed=300000):
         """ Connects the objective, moves to pos_z

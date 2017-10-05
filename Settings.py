@@ -79,11 +79,13 @@ class DirectorySettings():
 
     def get_data_folder(self):
         root = self.default_path
-        return os.path.join(root,self.Sample_ID,'raw','data','Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
+        return os.path.join(root,self.Sample_ID,'raw','data',
+            'Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
 
     def get_map_folder(self):
         root = self.default_path
-        return os.path.join(root,self.Sample_ID,'raw','map','Ribbon{}'.format(self.Ribbon_ID),'map{}'.format(self.Map_num))
+        return os.path.join(root,self.Sample_ID,'raw','map',
+            'Ribbon{}'.format(self.Ribbon_ID),'map{}'.format(self.Map_num))
 
 
 class SessionSettings():
