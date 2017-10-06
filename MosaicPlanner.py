@@ -933,6 +933,8 @@ class MosaicPanel(FigureCanvas):
         """
         if folder:
             self.map_folder = folder
+        else:
+            folder = self.map_folder
         self.on_load(folder)
         return folder
 
@@ -1038,6 +1040,7 @@ class MosaicPanel(FigureCanvas):
         """ Callback for batman button (used to start acquisition)
         """
         settings = self.get_current_acquisition_settings()
+        print(settings)
         if self.interface:
             self.interface.publish(settings)
         # what else do?
@@ -1105,6 +1108,12 @@ class MosaicPanel(FigureCanvas):
         self.setStagePosition(*pos)
         return pos
 
+    def move_to_setup_height(self):
+        """ Moves the objective to a configured height for starting mosaic
+                plan setup.
+        """
+        height = self.cfg['Stage_Settings']['objective_setup_height']
+        self.setZPosition(height)
 
     def unload_arduino(self):
         # DW: basically something about the arduino is fucking up

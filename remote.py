@@ -293,6 +293,11 @@ class RemoteInterface(Publisher):
             self.set_objective_z(z)
         self.parent.software_autofocus()
 
+    def move_to_setup_height(self):
+        """ Moves to default height for montage setup.
+        """
+        self.parent.move_to_setup_height()
+
     def connect_objective(self, pos_z, speed=300000):
         """ Connects the objective, moves to pos_z
         """
