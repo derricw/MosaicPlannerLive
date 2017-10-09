@@ -1318,13 +1318,21 @@ class MosaicPanel(FigureCanvas):
             else:
                 pass
 
-    def move_to_initial_and_focus(self,x,y):
+    def move_to_xy_and_focus(self,x,y):
         self.imgSrc.move_stage(x,y)
         stg = self.imgSrc.mmc.stage
         self.imgSrc.mmc.waitForDevice(stg)
         # self.imgSrc.stop_hardware_triggering()
         self.software_autofocus(acquisition_boolean=True)
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
+
+    def move_to_slice(self, slice_index=0):
+        """ Moves to a specific slice (section) on the ribbon.
+        """
+        slice_pos = self.posList.slicePositions[slice_index]
+        pos = slice_pos.x, slice_pos.y
+        self.setStagePosition(*pos)
+        return pos
 
     def on_run_acq(self,outdir=None,event="none"):
         """ Main acquisition loop.
@@ -1388,8 +1396,6 @@ class MosaicPanel(FigureCanvas):
         #loop over positions
         self._is_acquiring = True
         for i,pos in enumerate(self.posList.slicePositions):
-            if i==(len(self.posList.slicePositions)-1):
-                    self.slack_notify('last section imaging beginning')
             if pos.activated:
                 if not goahead:
                     break
@@ -1413,7 +1419,7 @@ class MosaicPanel(FigureCanvas):
                         print 'moving to initial position to focus'
                         initx = initial_position[0]
                         inity = initial_position[1]
-                        self.move_to_initial_and_focus(initx,inity)
+                        self.move_to_xy_and_focus(initx,inity)
 
                         #move to initial position and focus function goes here
                     for j,fpos in enumerate(pos.frameList.slicePositions):
@@ -1803,7 +1809,9 @@ class MosaicPanel(FigureCanvas):
 
     def on_snap_tool(self,evt=""):
         #takes snap straight away
-        self.mosaicImage.imgCollection.oh_snap()
+        img = self.mosaicImage.imgCollection.oh_snap()
+        print(img.shape)
+        print(img.dtype)
         if self.mosaicImage.imgCollection.imgCount == 1:
             self.on_crop_tool()
         self.draw()

@@ -282,6 +282,11 @@ class RemoteInterface(Publisher):
         """
         return self.parent.move_to_cassette(cassette_index)
 
+    def move_to_slice(self, slice_index=0):
+        """ Moves to a specific slice in x,y.
+        """
+        return self.parent.move_to_slice(slice_index)
+
     def move_to_oil_position(self, index=None):
         """ Moves stage to specified oiling location.  If none,
             moves to closest.
