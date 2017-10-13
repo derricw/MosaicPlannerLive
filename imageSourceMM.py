@@ -301,7 +301,7 @@ class ImageSource():
 
         if not self.mmc.isContinuousFocusEnabled():
             print 'autofocus not enabled'
-            wx.MessageBox('autofocus not enabled, Help me',)
+            wx.MessageBox('Autofocus not enabled!',)
             return
 
 

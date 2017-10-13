@@ -197,12 +197,19 @@ class RemoteInterface(Publisher):
         """
         self.parent.set_position_file(position_file)
 
-    def load_position_list(self, position_file=None):
+    def load_position_list(self, position_file=""):
         """ Loads a specific position list file.
                 If not provided, it will load the one currently specified in the
                 GUI.
         """
         self.parent.load_position_list(position_file)
+
+    def save_position_list(self, position_file=""):
+        """ Saves the position list to the specified file.
+            if one is not specified, will save to the file in
+            the GUI's array file field.
+        """
+        self.parent.save_position_list(position_file)
 
     def clear_position_list(self):
         """ Clears the current position list.
@@ -236,7 +243,9 @@ class RemoteInterface(Publisher):
     def save_acquisition_settings(self, path=""):
         if not path:
             path = self.acquisition_data_path
-        return self.parent.save_acquisition_settings(path), path
+        settings = self.parent.save_acquisition_settings(path)
+        #session_data['datetime'] = str(session_data['datetime'])
+        return settings, path
 
     @property
     def acquisition_data_path(self):
@@ -247,7 +256,9 @@ class RemoteInterface(Publisher):
                                                 dir_settings['session_id']))
 
     def load_acquisition_settings(self, settings):
-        self.parent.load_acquisition_settings(settings)
+        session_data = self.parent.load_acquisition_settings(settings)
+        #session_data['datetime'] = str(session_data['datetime'])
+        return session_data
 
     def sample_nearby(self, pos=None, folder="", size=3):
         """ Samples a grid of images and saves them to a specified folder.
@@ -306,7 +317,7 @@ class RemoteInterface(Publisher):
     def connect_objective(self, pos_z, speed=300000):
         """ Connects the objective, moves to pos_z
         """
-        approach_offset = 4000.0 # configurable?
+        approach_offset = 6000.0 # configurable?
         # go to approach offset first
         self.set_objective_z(approach_offset)
         # then go to objective slowly if desired
@@ -314,15 +325,20 @@ class RemoteInterface(Publisher):
 
 
     def disconnect_objective(self, pos_z=None, speed=300000):
-        approach_offset = 4000.0 #configurable?
+        approach_offset = 6000.0 #configurable?
         if pos_z is None:
             pos_z = approach_offset
         self.set_objective_z(approach_offset, speed)
         self.set_objective_z(pos_z)
 
+    def software_autofocus(self):
+        """ Triggers Olga's software autofocus.
+        """
+        return self.parent.software_autofocus()
+
 
     def autofocus(self, search_range=320, step=20, settle_time=1.0, attempts=3):
-        """ Triggers autofocus.
+        """ Triggers hardware autofocus.
         """
         z_pos = self.parent.imgSrc.focus_search(search_range=search_range,
                                                 step=step,

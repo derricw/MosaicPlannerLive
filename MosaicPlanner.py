@@ -957,7 +957,7 @@ class MosaicPanel(FigureCanvas):
         # do we need to check if the file exists?  I think not.
         self.position_list_path = position_file
 
-    def load_position_list(self, position_file=None):
+    def load_position_list(self, position_file=""):
         """ Loads a specific position list file.
                 If not provided, it will load the one currently specified in the
                 GUI.
@@ -968,12 +968,14 @@ class MosaicPanel(FigureCanvas):
             self.set_position_file(position_file)
         self.parent.on_array_load()
 
-    def save_position_list(self, path):
+    def save_position_list(self, path=""):
         """ Saves the position list to a specified path.
 
             args:
                 path (str): path to save position list (.json)
         """
+        if not path:
+            path = self.position_list_path
         #I'm not sure what this transfromed stuff does but 
         # i'm keeping it until i know
         if self.parent.save_transformed.IsChecked():
@@ -994,7 +996,7 @@ class MosaicPanel(FigureCanvas):
             "map_folder": self.map_folder,
             "channel_settings": self.channel_settings.__dict__,
             "directory_settings": dir_settings,
-            "datetime": datetime.datetime.now(),
+            "datetime": str(datetime.datetime.now()),
             "micromanager_config": self.MM_config_file,
             "objective_height": self.getZPosition(),
         }
@@ -1008,6 +1010,7 @@ class MosaicPanel(FigureCanvas):
             Returns:
                 dict: the settings that were saved.
         """
+        self.save_position_list()
         settings = self.get_current_acquisition_settings()
         import yaml  #DW should i move this import to top?
         with open(path, 'w') as f:
@@ -1028,7 +1031,7 @@ class MosaicPanel(FigureCanvas):
             import yaml
             with open(settings, 'r') as f:
                 settings = yaml.load(f)
-
+        print(settings)
         self.load_map(settings['map_folder'])
         self.load_position_list(settings['position_list_path'])
         self.load_directory_settings(settings['directory_settings'])
@@ -1039,7 +1042,9 @@ class MosaicPanel(FigureCanvas):
     def setup_complete(self, event=None):
         """ Callback for batman button (used to start acquisition)
         """
-        settings = self.get_current_acquisition_settings()
+        settings = {
+            "acquisition": self.get_current_acquisition_settings(),
+        }
         print(settings)
         if self.interface:
             self.interface.publish(settings)
@@ -1319,6 +1324,12 @@ class MosaicPanel(FigureCanvas):
                 pass
 
     def move_to_xy_and_focus(self,x,y):
+        """ Move to specific stage pos and initiate
+            software autofocus.
+
+        DW: changed name to reflect functionality a
+            bit better.
+        """
         self.imgSrc.move_stage(x,y)
         stg = self.imgSrc.mmc.stage
         self.imgSrc.mmc.waitForDevice(stg)
@@ -1327,14 +1338,15 @@ class MosaicPanel(FigureCanvas):
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
 
     def move_to_slice(self, slice_index=0):
-        """ Moves to a specific slice (section) on the ribbon.
+        """ Moves to a specific slice (section) on the
+            current ribbon.
         """
         slice_pos = self.posList.slicePositions[slice_index]
         pos = slice_pos.x, slice_pos.y
         self.setStagePosition(*pos)
         return pos
 
-    def on_run_acq(self,outdir=None,event="none"):
+    def on_run_acq(self, outdir=None, event="none"):
         """ Main acquisition loop.
         """
         print("running")
