@@ -46,7 +46,7 @@ def file_save_process(queue, message_queue, metadata_dict):
                 write_img(tif_filepath, data)
                 if publisher:
                     t0_p = time.clock()
-                    thumb = make_thumbnail(data, bin=2)
+                    thumb = {'image': make_thumbnail(data, bin=2)}
                     publisher.publish(thumb)
                     #logging.debug("Publishing took: {} seconds".format(time.clock()-t0_p))
                 write_slice_metadata(metadata_filepath, ch, x, y, z, slice_index, triggerflag, metadata_dict)

@@ -516,7 +516,7 @@ class MosaicPanel(FigureCanvas):
         try:
             self.interface._check_rep()
         except Exception as e:
-            import traceback; traceback.print_exc()  #UNCOMMENT IF MP STOPS COMMUNICATING
+            #import traceback; traceback.print_exc()  #UNCOMMENT IF MP STOPS COMMUNICATING
             pass
 
     def setZPosition(self,position, wait=True):
@@ -562,7 +562,7 @@ class MosaicPanel(FigureCanvas):
                 # if we have a remote interface, publish subsampled image
                 if self.interface:
                     t0 = time.clock()
-                    self.interface.publish(make_thumbnail(img))
+                    self.interface.publish({'image': make_thumbnail(img)})
                     print(time.clock()-t0)
 
 
@@ -916,6 +916,8 @@ class MosaicPanel(FigureCanvas):
 
     def set_map_folder(self, folder):
         """ Sets the current map folder in the GUI.
+
+            #DW: get rid of this?
 
             args:
                 folder (str): the map folder which contains a bunch of images and their
@@ -1401,7 +1403,7 @@ class MosaicPanel(FigureCanvas):
 
         if not self.imgSrc.get_hardware_autofocus_state():
             self.slack_notify('HELP! lost autofocus on way to first position',notify=True)
-            print 'HELP! lost autofocus on way to first position'
+            print('HELP! lost autofocus on way to first position')
             goahead=False
 
 
@@ -1497,6 +1499,7 @@ class MosaicPanel(FigureCanvas):
 
         self._is_acquiring = False
         self._frame_count = 0
+        logging.info("Imaging Complete! Data saved to: {}".format(outdir))
 
     def edit_channels(self,event="none"):
         dlg = ChangeChannelSettings(None, -1, title = "Channel Settings", settings = self.channel_settings,style=wx.OK)
