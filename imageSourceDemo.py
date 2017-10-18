@@ -369,10 +369,10 @@ class ImageSource():
 
         self.set_xy(x,y)
 
-    def set_autofocus_offset(self,offset): #MultiRibbons
+    def set_autofocus_offset(self,offset):
         self.offset = offset
 
-    def get_autofocus_offset(self): #MultiRibbons
+    def get_autofocus_offset(self):
         return self.offset
         
     def shutdown(self):

@@ -349,6 +349,7 @@ class ImageSource():
         print "todo get some real metadata"
         metadata=None
         return data,bbox
+
     def set_xy(self,x,y,use_focus_plane=False):
         flipx,flipy = self.get_xy_flip()
 
@@ -392,6 +393,7 @@ class ImageSource():
         #    y = -y
 
         return (x,y)
+
     def get_z(self):
         return self.mmc.getPosition(self.objective)
 
@@ -627,12 +629,12 @@ class ImageSource():
         self.mmc.setXYPosition(self.stage, x, y)
         #self.mmc.waitForDevice(stg)
 
-    def set_autofocus_offset(self,offset): #MultiRibbons
+    def set_autofocus_offset(self, offset):
         if self.has_hardware_autofocus():
             self.mmc.setAutoFocusOffset(offset)
             self.mmc.waitForDevice(self.mmc.getAutoFocusDevice())
 
-    def get_autofocus_offset(self): #MultiRibbons
+    def get_autofocus_offset(self):
         if self.has_hardware_autofocus():
             return self.mmc.getAutoFocusOffset()
     

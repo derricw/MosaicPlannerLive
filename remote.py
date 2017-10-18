@@ -347,6 +347,12 @@ class RemoteInterface(Publisher):
         logging.info("Autofocus completed @ objective height: {}".format(z_pos))
         return z_pos
 
+    def get_autofocus_offset(self):
+        return self.parent.imgSrc.get_autofocus_offset()
+
+    def set_autofocus_offset(self, value):
+        return self.parent.imgSrc.set_autofocus_offset(value)
+
     @property
     def is_acquiring(self):
         """ Returns whether or not MP is acquiring
@@ -355,6 +361,8 @@ class RemoteInterface(Publisher):
         return self.parent._is_acquiring
 
     def start_acquisition(self, data_dir=""):
+        if self.is_acquiring:
+            raise Exception("MosaicPlanner is already acquiring!")
         self._rep_sock.send_json(True)
         self.parent._is_acquiring = True
         self.parent.on_run_acq(data_dir)

@@ -524,7 +524,7 @@ class MosaicPanel(FigureCanvas):
         """
         focus = self.imgSrc.objective
         currentpos = self.imgSrc.mmc.getPosition(focus)
-        self.imgSrc.mmc.setPosition(focus,position)
+        self.imgSrc.mmc.setPosition(focus, position)
         if wait:
             self.imgSrc.mmc.waitForDevice(focus)
 
@@ -565,24 +565,6 @@ class MosaicPanel(FigureCanvas):
                     self.interface.publish({'image': make_thumbnail(img)})
                     print(time.clock()-t0)
 
-
-    # def What_toMap(self):
-    #     dlg = MapSettingsDialog(None,-1,mapdict = self.mapdict)
-    #     buttonpressed = dlg.ShowModal()
-    #     if buttonpressed == wx.ID_OK:
-    #         mapchoice = dlg.GetValue()
-    #         self.cfg['MosaicPlanner']['default_imagepath'] = mapchoice
-    #         for key, value in self.mapdict.iteritems():
-    #             if value == mapchoice:
-    #                 self.cfg['MosaicPlanner']['default_arraypath'] = self.outdirdict[key]
-    #         return mapchoice
-
-    # def get_ribbon_number(self):
-    #     dlg = RibbonNumberDialog(None,-1,style = wx.ID_OK)
-    #     dlg.ShowModal()
-    #     Ribbon_Num = dlg.GetValue()
-    #     dlg.Destroy()
-    #     return Ribbon_Num
 
     def handle_close(self,evt=None):
         print("handling close")
@@ -1001,6 +983,7 @@ class MosaicPanel(FigureCanvas):
             "datetime": str(datetime.datetime.now()),
             "micromanager_config": self.MM_config_file,
             "objective_height": self.getZPosition(),
+            "autofocus_offset": self.imgSrc.get_autofocus_offset(),
         }
 
     def save_acquisition_settings(self, path):
