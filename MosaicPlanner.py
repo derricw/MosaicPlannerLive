@@ -1825,7 +1825,6 @@ class MosaicPanel(FigureCanvas):
 
     def on_software_af_tool(self,evt=""):
         self.software_autofocus(buttonpress=True)
-        print "Great Job!"
 
     def on_fine_tune_tool(self,evt=""):
         print "fine tune tool not yet implemented, should do something to make fine adjustments to current position list"
@@ -2037,7 +2036,7 @@ class MosaicPanel(FigureCanvas):
         """
         if buttonpress:
             self.imgSrc.set_binning(1)
-        print "software autofocus"
+        print("software autofocus")
         if (acquisition_boolean) and (self.cfg['MosaicPlanner']['hardware_trigger']):
             self.imgSrc.stop_hardware_triggering()
         self.imgSrc.set_hardware_autofocus_state(False) #turn off autofocus
@@ -2050,15 +2049,15 @@ class MosaicPanel(FigureCanvas):
             zstack_number = self.cfg['Software Autofocus']['acquisition']
         else:
             zstack_number = self.cfg['Software Autofocus']['nonacquisition'] #number of images to take
-        print zstack_step, zstack_number
+        print(zstack_step, zstack_number)
         stack = np.zeros((height,width,zstack_number))
         offsets = []
         current_z = self.imgSrc.get_z()
-        print "current_z: ", current_z
-        print "autofocus offset: ", self.imgSrc.get_autofocus_offset()
+        print("current_z: ", current_z)
+        print("autofocus offset: ", self.imgSrc.get_autofocus_offset())
         furthest_distance = zstack_step * (zstack_number-1)/2
         zplanes_to_visit = [(current_z-furthest_distance) + i*zstack_step for i in range(zstack_number)]
-        print "z_planes:", zplanes_to_visit
+        print("z_planes:", zplanes_to_visit)
 
         for z_index, zplane in enumerate(zplanes_to_visit):
             self.imgSrc.set_z(zplane)
@@ -2068,8 +2067,8 @@ class MosaicPanel(FigureCanvas):
             offsets.append(self.imgSrc.get_autofocus_offset())
 
         #calculate best z
-        print "calculating focus"
-        print "offsets: ", offsets
+        print("calculating focus")
+        print("offsets: ", offsets)
         #using Laplacian
         score_med = np.zeros(zstack_number)
         score_std = np.zeros(zstack_number)
@@ -2091,10 +2090,10 @@ class MosaicPanel(FigureCanvas):
         def gauss_1d(x, amp, offset, x0, sigma_x):
             z = offset + amp*np.exp(-((x-x0)/sigma_x)**2)
             return z
-        print "zscore", zscore
+        print("zscore", zscore)
         popt, pcov = opt.curve_fit(gauss_1d, offsets1, zscore, p0=par_init)
         best_offset = popt[2]
-        print "best_offset: ", best_offset
+        print("best_offset: ", best_offset)
         self.imgSrc.set_autofocus_offset(best_offset) #reset autofocus offset
         time.sleep(2*self.cfg['MosaicPlanner']['autofocus_wait'])
         self.imgSrc.set_hardware_autofocus_state(True) #turn on autofocus
@@ -2113,13 +2112,6 @@ class MosaicPanel(FigureCanvas):
 
     def setStagePosition(self, newXPos, newYPos):
         self.imgSrc.move_stage(newXPos, newYPos)
-
-    # def setZPosition(self, newZPos):
-    #     self.imgSrc.set_z(newZPos)
-    #
-    # def getZPosition(self):
-    #     zPosition = self.imgSrc.get_z()
-    #     return zPosition
 
     def remoteSavePositionListJSON(self, trans=None):
         if self.cfg['MosaicPlanner']['default_arraypath']:
