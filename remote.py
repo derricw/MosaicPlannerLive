@@ -304,11 +304,6 @@ class RemoteInterface(Publisher):
         """
         return self.parent.move_to_oil_position(index)
 
-    def move_to_z_and_focus(self, z=None):
-        if z is not None:
-            self.set_objective_z(z)
-        self.parent.software_autofocus()
-
     def move_to_setup_height(self):
         """ Moves to default height for montage setup.
         """
@@ -321,6 +316,7 @@ class RemoteInterface(Publisher):
         # go to approach offset first
         self.set_objective_z(approach_offset)
         # then go to objective slowly if desired
+        self.set_objective_z(pos_z + 50.0, speed=speed)
         self.set_objective_z(pos_z, speed=speed)
 
 
@@ -337,7 +333,7 @@ class RemoteInterface(Publisher):
         return self.parent.software_autofocus()
 
 
-    def autofocus(self, search_range=320, step=20, settle_time=1.0, attempts=3):
+    def autofocus(self, search_range=260, step=20, settle_time=1.0, attempts=3):
         """ Triggers hardware autofocus.
         """
         z_pos = self.parent.imgSrc.focus_search(search_range=search_range,

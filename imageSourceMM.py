@@ -559,7 +559,7 @@ class ImageSource():
                 break
 
     def focus_search(self,
-                     search_range=320,
+                     search_range=260,
                      step=20,
                      settle_time=1.0,
                      attempts=3):
@@ -632,7 +632,7 @@ class ImageSource():
     def set_autofocus_offset(self, offset):
         if self.has_hardware_autofocus():
             self.mmc.setAutoFocusOffset(offset)
-            self.mmc.waitForDevice(self.mmc.getAutoFocusDevice())
+            self.mmc.waitForDevice(self.hw_autofocus)
 
     def get_autofocus_offset(self):
         if self.has_hardware_autofocus():
