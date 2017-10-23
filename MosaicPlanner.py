@@ -1153,14 +1153,18 @@ class MosaicPanel(FigureCanvas):
     def get_remaining_frames(self):
         """ Gets number of frames remaining in the acquisition.
         """
-        if not self._is_acquiring:
-            return 0
-
         current_frame_count = self._frame_count
         
         total_sections = len(self.posList.slicePositions)
+        if not total_sections:
+            # nothing loaded yet
+            return 0
+
         frames_per_section = len(self.posList.slicePositions[0].frameList.slicePositions)
         total_frames = total_sections * frames_per_section
+
+        if not self._is_acquiring:
+            return total_frames
 
         return total_frames - current_frame_count
 
@@ -1413,7 +1417,7 @@ class MosaicPanel(FigureCanvas):
                     triggerflag = False
                     initial_position = self.get_initial_position(pos)
                     if initial_position is not None:
-                        print 'moving to initial position to focus'
+                        print('moving to initial position to focus')
                         initx = initial_position[0]
                         inity = initial_position[1]
                         self.move_to_xy_and_focus(initx,inity)
@@ -1428,7 +1432,7 @@ class MosaicPanel(FigureCanvas):
                             break
                         if not self.imgSrc.get_hardware_autofocus_state():
                             self.slack_notify('HELP! lost autofocus between frames',notify=True)
-                            print "autofocus no longer enabled while moving between frames.. quiting"
+                            print("autofocus no longer enabled while moving between frames.. quiting")
                             goahead = False
                             break
                         if not self.messageQueue.empty():
