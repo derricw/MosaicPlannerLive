@@ -212,7 +212,7 @@ class ImageCollection():
 
     def oh_snap(self):
         (x, y) = self.imageSource.get_xy()
-        self.add_image_at(x,y)
+        return self.add_image_at(x,y)
         
     def add_image_at(self,x,y):
         #go get an image at x,y

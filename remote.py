@@ -146,7 +146,7 @@ class RemoteInterface(Publisher):
 
     def set_objective_property(self, property, value):
         objective = self.parent.imgSrc.objective
-        return self.parent.imgSrc.mmc.setProperty(objective, property, value)
+        return self.parent.imgSrc.mmc.setProperty(objective, str(property), value)
 
     def set_objective_vel(self, vel):
         """ Sets objective move speed
@@ -156,17 +156,17 @@ class RemoteInterface(Publisher):
         """ Get objective speed
         """
 
-    def set_mm_timeout(self, ms):
+    def set_mm_timeout(self, sec):
         """ Sets MicroManager timeout
         """
+        ms = int(sec*1000)
         self.parent.imgSrc.mmc.setTimeoutMs(ms)
         logging.info("MicroManager timeout set to: {} ms".format(ms))
 
     def get_remaining_time(self):
         """ Returns remaining acquisition time.
         """
-        remainingTime = self.parent.getRemainingImagingTime()
-        return remainingTime
+        return self.parent.get_remaining_time()
 
     def get_current_acquisition_settings(self):
         """ Gets the current imaging session metadata.
@@ -185,8 +185,9 @@ class RemoteInterface(Publisher):
         """ Loads the map at the specified folder
                 or at the one currently specified in the GUI.
         """
-        self.parent.load_map(folder)
+        folder = self.parent.load_map(folder)
         self._current_map = folder
+        return folder
 
     def set_position_file(self, position_file):
         """ Sets the current array position file in the GUI.
@@ -196,12 +197,19 @@ class RemoteInterface(Publisher):
         """
         self.parent.set_position_file(position_file)
 
-    def load_position_list(self, position_file=None):
+    def load_position_list(self, position_file=""):
         """ Loads a specific position list file.
                 If not provided, it will load the one currently specified in the
                 GUI.
         """
         self.parent.load_position_list(position_file)
+
+    def save_position_list(self, position_file=""):
+        """ Saves the position list to the specified file.
+            if one is not specified, will save to the file in
+            the GUI's array file field.
+        """
+        self.parent.save_position_list(position_file)
 
     def clear_position_list(self):
         """ Clears the current position list.
@@ -218,7 +226,7 @@ class RemoteInterface(Publisher):
             "Session_ID": session_id,
             "Map_num": 0, # ??
             "Slot_num": 0,  #DW: what should i do with this?
-            "meta_experiment_name": "automated",
+            "meta_experiment_name": "mpe_automated",
         }
         self.parent.load_directory_settings(settings)
 
@@ -232,11 +240,25 @@ class RemoteInterface(Publisher):
             # Include map#?
         }
 
-    def save_acquisition_settings(self, path):
-        self.parent.save_acquisition_settings(path)
+    def save_acquisition_settings(self, path=""):
+        if not path:
+            path = self.acquisition_data_path
+        settings = self.parent.save_acquisition_settings(path)
+        #session_data['datetime'] = str(session_data['datetime'])
+        return settings, path
 
-    def load_acquisition_settings(self, path):
-        self.parent.load_acquisition_settings(path)
+    @property
+    def acquisition_data_path(self):
+        dir_settings = self.get_directory_settings()
+        return os.path.join(dir_settings['root_dir'],
+                            dir_settings['sample_id'],
+                            "{}_{}.yaml".format(dir_settings['ribbon_id'],
+                                                dir_settings['session_id']))
+
+    def load_acquisition_settings(self, settings):
+        session_data = self.parent.load_acquisition_settings(settings)
+        #session_data['datetime'] = str(session_data['datetime'])
+        return session_data
 
     def sample_nearby(self, pos=None, folder="", size=3):
         """ Samples a grid of images and saves them to a specified folder.
@@ -265,29 +287,54 @@ class RemoteInterface(Publisher):
 
     def move_to_cassette(self, cassette_index=0):
         """ Moves to the specified cassette.
+
+            #TODO: Should we disconnect objective?
+
         """
         return self.parent.move_to_cassette(cassette_index)
 
-    def connect_objective(self, pos_z, speed=None):
+    def move_to_slice(self, slice_index=0):
+        """ Moves to a specific slice in x,y.
+        """
+        return self.parent.move_to_slice(slice_index)
+
+    def move_to_oil_position(self, index=None):
+        """ Moves stage to specified oiling location.  If none,
+            moves to closest.
+        """
+        return self.parent.move_to_oil_position(index)
+
+    def move_to_setup_height(self):
+        """ Moves to default height for montage setup.
+        """
+        self.parent.move_to_setup_height()
+
+    def connect_objective(self, pos_z, speed=300000):
         """ Connects the objective, moves to pos_z
         """
-        approach_offset = 4000.0 # configurable?
+        approach_offset = 6000.0 # configurable?
         # go to approach offset first
         self.set_objective_z(approach_offset)
         # then go to objective slowly if desired
+        self.set_objective_z(pos_z + 50.0, speed=speed)
         self.set_objective_z(pos_z, speed=speed)
 
 
-    def disconnect_objective(self, pos_z=None, speed=None):
-        approach_offset = 4000.0 #configurable?
+    def disconnect_objective(self, pos_z=None, speed=300000):
+        approach_offset = 6000.0 #configurable?
         if pos_z is None:
             pos_z = approach_offset
         self.set_objective_z(approach_offset, speed)
         self.set_objective_z(pos_z)
 
+    def software_autofocus(self):
+        """ Triggers Olga's software autofocus.
+        """
+        return self.parent.software_autofocus()
 
-    def autofocus(self, search_range=320, step=20, settle_time=1.0, attempts=3):
-        """ Triggers autofocus.
+
+    def autofocus(self, search_range=260, step=20, settle_time=1.0, attempts=3):
+        """ Triggers hardware autofocus.
         """
         z_pos = self.parent.imgSrc.focus_search(search_range=search_range,
                                                 step=step,
@@ -296,14 +343,24 @@ class RemoteInterface(Publisher):
         logging.info("Autofocus completed @ objective height: {}".format(z_pos))
         return z_pos
 
+    def get_autofocus_offset(self):
+        return self.parent.imgSrc.get_autofocus_offset()
+
+    def set_autofocus_offset(self, value):
+        return self.parent.imgSrc.set_autofocus_offset(value)
+
     @property
     def is_acquiring(self):
         """ Returns whether or not MP is acquiring
         """
         #return self.parent.acquiring
-        return False
+        return self.parent._is_acquiring
 
     def start_acquisition(self, data_dir=""):
+        if self.is_acquiring:
+            raise Exception("MosaicPlanner is already acquiring!")
+        self._rep_sock.send_json(True)
+        self.parent._is_acquiring = True
         self.parent.on_run_acq(data_dir)
 
     def check_bubbles(self, img_folder):

@@ -79,11 +79,13 @@ class DirectorySettings():
 
     def get_data_folder(self):
         root = self.default_path
-        return os.path.join(root,self.Sample_ID,'raw','data','Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
+        return os.path.join(root,self.Sample_ID,'raw','data',
+            'Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
 
     def get_map_folder(self):
         root = self.default_path
-        return os.path.join(root,self.Sample_ID,'raw','map','Ribbon{}'.format(self.Ribbon_ID),'map{}'.format(self.Map_num))
+        return os.path.join(root,self.Sample_ID,'raw','map',
+            'Ribbon{}'.format(self.Ribbon_ID),'map{}'.format(self.Map_num))
 
 
 class SessionSettings():
@@ -595,14 +597,14 @@ class ChangeChannelSettings(wx.Dialog):
 
 
             IntCtrl=wx.lib.intctrl.IntCtrl( self, value=settings.exposure_times[ch],size=(50,-1))
-            FloatCtrl=wx.lib.agw.floatspin.FloatSpin(self, 
-                                       value=settings.zoffsets[ch],
-                                       min_val=-3.0,
-                                       max_val=3.0,
-                                       increment=.1,
-                                       digits=2,
-                                       name='',
-                                       size=(95,-1)) 
+            # FloatCtrl=wx.lib.agw.floatspin.FloatSpin(self, 
+            #                            value=settings.zoffsets[ch],
+            #                            min_val=-3.0,
+            #                            max_val=3.0,
+            #                            increment=.1,
+            #                            digits=2,
+            #                            name='',
+            #                            size=(95,-1)) 
                
             if ch is settings.channels[0]:
                 RadBut = wx.RadioButton(self,-1,'',style=wx.RB_GROUP)
@@ -616,13 +618,13 @@ class ChangeChannelSettings(wx.Dialog):
             gridSizer.Add(ChBox,0,flag=wx.ALL|wx.EXPAND,border=5)
             gridSizer.Add(IntCtrl,0,border=5)
             gridSizer.Add(RadBut,0,flag=wx.ALL|wx.EXPAND,border=5)
-            gridSizer.Add(FloatCtrl,0,flag=wx.ALL|wx.EXPAND,border=5)
+            #gridSizer.Add(FloatCtrl,0,flag=wx.ALL|wx.EXPAND,border=5)
             
             self.ProtNameCtrls.append(ProtComboBox)
             self.UseCtrls.append(ChBox)
             self.ExposureCtrls.append(IntCtrl)
             self.MapRadCtrls.append(RadBut)
-            self.ZOffCtrls.append(FloatCtrl)
+            #self.ZOffCtrls.append(FloatCtrl)
         
            
         hbox = wx.BoxSizer(wx.HORIZONTAL)      

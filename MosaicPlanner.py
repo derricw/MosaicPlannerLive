@@ -415,6 +415,11 @@ class MosaicPanel(FigureCanvas):
         self.directory_settings = DirectorySettings()
         self.directory_settings.load_settings(config)
 
+        # Acquiring flag so remote control can know if we're in
+        # an acquisition
+        self._is_acquiring = False
+        self._frame_count = 0
+
         # DW, we don't want to do this unless we have to.
         # self.edit_Directory_settings()
         # dictvalue = self.get_output_dir(self.directory_settings)
@@ -511,7 +516,7 @@ class MosaicPanel(FigureCanvas):
         try:
             self.interface._check_rep()
         except Exception as e:
-            #print e  #UNCOMMENT IF MP STOPS COMMUNICATING
+            #import traceback; traceback.print_exc()  #UNCOMMENT IF MP STOPS COMMUNICATING
             pass
 
     def setZPosition(self,position, wait=True):
@@ -519,7 +524,7 @@ class MosaicPanel(FigureCanvas):
         """
         focus = self.imgSrc.objective
         currentpos = self.imgSrc.mmc.getPosition(focus)
-        self.imgSrc.mmc.setPosition(focus,position)
+        self.imgSrc.mmc.setPosition(focus, position)
         if wait:
             self.imgSrc.mmc.waitForDevice(focus)
 
@@ -557,27 +562,9 @@ class MosaicPanel(FigureCanvas):
                 # if we have a remote interface, publish subsampled image
                 if self.interface:
                     t0 = time.clock()
-                    self.interface.publish(make_thumbnail(img))
+                    self.interface.publish({'image': make_thumbnail(img)})
                     print(time.clock()-t0)
 
-
-    # def What_toMap(self):
-    #     dlg = MapSettingsDialog(None,-1,mapdict = self.mapdict)
-    #     buttonpressed = dlg.ShowModal()
-    #     if buttonpressed == wx.ID_OK:
-    #         mapchoice = dlg.GetValue()
-    #         self.cfg['MosaicPlanner']['default_imagepath'] = mapchoice
-    #         for key, value in self.mapdict.iteritems():
-    #             if value == mapchoice:
-    #                 self.cfg['MosaicPlanner']['default_arraypath'] = self.outdirdict[key]
-    #         return mapchoice
-
-    # def get_ribbon_number(self):
-    #     dlg = RibbonNumberDialog(None,-1,style = wx.ID_OK)
-    #     dlg.ShowModal()
-    #     Ribbon_Num = dlg.GetValue()
-    #     dlg.Destroy()
-    #     return Ribbon_Num
 
     def handle_close(self,evt=None):
         print("handling close")
@@ -833,14 +820,15 @@ class MosaicPanel(FigureCanvas):
         return Stage_Settings_Summary
 
     def summarize_channel_settings(self):
+        """ Gets number of active channels and total exposure time.
+        """
         numchan = 0
-        chrom_correction = False
+        exposure_time = 0.0
         for ch in self.channel_settings.channels:
             if self.channel_settings.usechannels[ch]:
                 numchan+=1
-                if (self.channel_settings.zoffsets[ch] != 0.0):
-                    chrom_correction = True
-        return numchan,chrom_correction
+                exposure_time += self.channel_settings.exposure_times[ch]
+        return numchan, exposure_time
 
     def load_channel_settings(self, settings):
         """ Loads channel settings from ChannelSettings object,
@@ -923,6 +911,8 @@ class MosaicPanel(FigureCanvas):
     def set_map_folder(self, folder):
         """ Sets the current map folder in the GUI.
 
+            #DW: get rid of this?
+
             args:
                 folder (str): the map folder which contains a bunch of images and their
                     text files.
@@ -939,7 +929,10 @@ class MosaicPanel(FigureCanvas):
         """
         if folder:
             self.map_folder = folder
+        else:
+            folder = self.map_folder
         self.on_load(folder)
+        return folder
 
     @property
     def position_list_path(self):
@@ -960,7 +953,7 @@ class MosaicPanel(FigureCanvas):
         # do we need to check if the file exists?  I think not.
         self.position_list_path = position_file
 
-    def load_position_list(self, position_file=None):
+    def load_position_list(self, position_file=""):
         """ Loads a specific position list file.
                 If not provided, it will load the one currently specified in the
                 GUI.
@@ -971,12 +964,14 @@ class MosaicPanel(FigureCanvas):
             self.set_position_file(position_file)
         self.parent.on_array_load()
 
-    def save_position_list(self, path):
+    def save_position_list(self, path=""):
         """ Saves the position list to a specified path.
 
             args:
                 path (str): path to save position list (.json)
         """
+        if not path:
+            path = self.position_list_path
         #I'm not sure what this transfromed stuff does but 
         # i'm keeping it until i know
         if self.parent.save_transformed.IsChecked():
@@ -997,8 +992,10 @@ class MosaicPanel(FigureCanvas):
             "map_folder": self.map_folder,
             "channel_settings": self.channel_settings.__dict__,
             "directory_settings": dir_settings,
-            "datetime": datetime.datetime.now(),
+            "datetime": str(datetime.datetime.now()),
             "micromanager_config": self.MM_config_file,
+            "objective_height": self.getZPosition(),
+            "autofocus_offset": self.imgSrc.get_autofocus_offset(),
         }
 
     def save_acquisition_settings(self, path):
@@ -1010,24 +1007,28 @@ class MosaicPanel(FigureCanvas):
             Returns:
                 dict: the settings that were saved.
         """
+        self.save_position_list()
         settings = self.get_current_acquisition_settings()
         import yaml  #DW should i move this import to top?
         with open(path, 'w') as f:
             yaml.dump(settings, f, default_flow_style=False)
         return settings
 
-    def load_acquisition_settings(self, path):
-        """ Loads acquisition settings from a specified yaml path.
+    def load_acquisition_settings(self, settings):
+        """ Applies acquisition settings from a specified yaml path or
+                pre-loaded dict.
 
             Args:
-                path (str): path to settings file (.yaml)
+                path (str, dict): path to settings file (.yaml) or settings dict
 
             Returns:
                 dict: the settings that were loaded.
         """
-        import yaml
-        with open(path, 'r') as f:
-            settings = yaml.load(f)
+        if isinstance(settings, (str, unicode)):
+            import yaml
+            with open(settings, 'r') as f:
+                settings = yaml.load(f)
+        print(settings)
         self.load_map(settings['map_folder'])
         self.load_position_list(settings['position_list_path'])
         self.load_directory_settings(settings['directory_settings'])
@@ -1038,7 +1039,13 @@ class MosaicPanel(FigureCanvas):
     def setup_complete(self, event=None):
         """ Callback for batman button (used to start acquisition)
         """
-        print("Setup complete!")
+        settings = {
+            "acquisition": self.get_current_acquisition_settings(),
+        }
+        print(settings)
+        if self.interface:
+            self.interface.publish(settings)
+        # what else do?
 
     def clear_position_list(self):
         """ Clears the current position list.
@@ -1046,6 +1053,7 @@ class MosaicPanel(FigureCanvas):
         self.posList.select_all()
         self.posList.delete_selected()
         self.subplot.clear()
+        #self.canvas.clear()
         self.posone_plot.clear()
         self.postwo_plot.clear()
 
@@ -1066,6 +1074,48 @@ class MosaicPanel(FigureCanvas):
                 cassette_index))
         self.setStagePosition(*pos)
         return pos
+
+    def move_to_oil_position(self, index=None):
+        """ Moves to a specific oil position.  If None specified,
+                moves to the closest.
+
+            args:
+                index (Optional[int]): index of target oil position.
+
+            returns:
+                2-tuple: (x,y) for chosen stage position
+        """
+
+        def dist2d(p0, p1):
+            """ Distance between two 2d points. """
+            x0, y0 = p0
+            x1, y1 = p1
+            return np.sqrt((x1-x0)**2 + (y1-y0)**2)
+
+        def get_nearest(source, pos_list):
+            """ Finds nearest point in position list to source position."""
+            distances = [dist2d(source, pos) for pos in pos_list]
+            val, i = min((val, i) for (i, val) in enumerate(distances))
+            return pos_list[i]
+
+        pos_list = self.cfg['Stage_Settings']['oiling_positions']
+        if not pos_list:
+            raise ValueError("No oiling positions configured.")
+        if index is None:
+            source = self.getStagePosition()
+            pos = get_nearest(source, pos_list)
+        else:
+            pos = pos_list[index]
+
+        self.setStagePosition(*pos)
+        return pos
+
+    def move_to_setup_height(self):
+        """ Moves the objective to a configured height for starting mosaic
+                plan setup.
+        """
+        height = self.cfg['Stage_Settings']['objective_setup_height']
+        self.setZPosition(height)
 
     def unload_arduino(self):
         # DW: basically something about the arduino is fucking up
@@ -1112,18 +1162,46 @@ class MosaicPanel(FigureCanvas):
 
         return numFrames,numSections
 
+<<<<<<< HEAD
     def map_progress_bar(self):
         map_img_count = 100
         self.map_progress = wx.ProgressDialog("Map Loading", "Time remaining", map_img_count,
         style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME | wx.PD_AUTO_HIDE)
 
+=======
+    def get_remaining_frames(self):
+        """ Gets number of frames remaining in the acquisition.
+        """
+        current_frame_count = self._frame_count
+        
+        total_sections = len(self.posList.slicePositions)
+        if not total_sections:
+            # nothing loaded yet
+            return 0
+
+        frames_per_section = len(self.posList.slicePositions[0].frameList.slicePositions)
+        total_frames = total_sections * frames_per_section
+
+        if not self._is_acquiring:
+            return total_frames
+
+        return total_frames - current_frame_count
+
+    def get_remaining_time(self):
+        """ Gets time remaining in the acquisition with the current settings.
+        """
+        _, exposure_time = self.summarize_channel_settings()
+        remaining_frames = self.get_remaining_frames()
+        stage_step = 200 #ms
+        return (stage_step + exposure_time) / 1000.0 * remaining_frames
+>>>>>>> c48ce57dfbb5347c3b76ee436d6336273b48cc72
 
     def get_output_dir(self,directory_settings):
         assert(isinstance(directory_settings, DirectorySettings))
         #gets output directory for session
 
         cfg = self.cfg
-        path = directory_settings.create_directory(cfg,kind = 'data')
+        path = directory_settings.create_directory(cfg,kind='data')
         if path is not None:
             dlg=wx.DirDialog(self, message="Pick output directory", defaultPath=path)
             button_pressed = dlg.ShowModal()
@@ -1153,6 +1231,7 @@ class MosaicPanel(FigureCanvas):
     #     if button_pressed == wx.ID_CANCEL:
     #         return False
 
+<<<<<<< HEAD
     def execute_imaging(self,pos_list,numFrames,numSections,channel_settings,chrome_correction,sample_information,mosaic_settings,zstack_settings,acquisition_settings,
                         stage_reset_settings,autofocus_settings):
 
@@ -1214,6 +1293,71 @@ class MosaicPanel(FigureCanvas):
         self.imgSrc.set_binning(2)
         if self.cfg['MosaicPlanner']['hardware_trigger']:
             self.imgSrc.stop_hardware_triggering()
+=======
+    # def execute_imaging(self,pos_list,numFrames,numSections,channel_settings,chrome_correction,sample_information,mosaic_settings,zstack_settings,acquisition_settings,
+    #                     stage_reset_settings,autofocus_settings):
+    #     """ DW: This appears to be an old version of on_run_acq.  I don't think it is used and
+    #             could probably be deleted...
+    #     """
+
+    #     assert(isinstance(zstack_settings, ZstackSettings))
+    #     assert(isinstance(channel_settings, ChannelSettings))
+    #     assert(isinstance(pos_list,PosList))
+    #     assert(type(autofocus_settings == dict))
+    #     assert(type(acquisition_settings == dict))
+    #     outdir = self.outdirdict[sample_information.Ribbon_ID]
+
+    #     binning = acquisition_settings['Binning']
+
+    #     numFrames,numSections = self.setup_progress_bar()
+    #     hold_focus = not (zstack_settings.zstack_flag or chrome_correction)
+
+    #     # starting with cycling through positions
+    #     goahead = True
+    #     #loop over positions
+    #     for i,pos in enumerate(pos_list.slicePositions):
+    #         if pos.activated:
+    #             if not goahead:
+    #                 break
+    #             if not self.imgSrc.get_hardware_autofocus_state():
+    #                 print "autofocus not enabled when moving between sections.. "
+    #                 goahead=False
+    #                 break
+    #             (goahead, skip) = self.progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
+    #             #turn on autofocus
+    #             self.ResetPiezo()
+    #             current_z = self.imgSrc.get_z()
+    #             if pos.frameList is None:
+    #                 self.multiDacq(outdir,chrome_correction,pos.x,pos.y,current_z,i,hold_focus=hold_focus)
+    #             else:
+    #                 for j,fpos in enumerate(pos.frameList.slicePositions):
+    #                     if not goahead:
+    #                         print("breaking out!")
+    #                         break
+    #                     if not self.imgSrc.get_hardware_autofocus_state():
+    #                         print("autofocus no longer enabled while moving between frames.. quiting")
+    #                         goahead = False
+    #                         break
+    #                     self.multiDacq(outdir,chrome_correction,fpos.x,fpos.y,current_z,i,j,hold_focus)
+    #                     self.ResetPiezo()
+    #                     (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
+
+    #             wx.Yield()
+    #     if not goahead:
+    #         print("acquisition stopped prematurely")
+    #         print("section %d"%(i))
+    #         if pos.frameList is not None:
+    #             print("frame %d"%(j))
+
+    #     self.dataQueue.put(STOP_TOKEN)
+    #     self.saveProcess.join()
+    #     print("save process ended")
+    #     self.progress.Destroy()
+    #     #self.progress.Close()
+    #     self.imgSrc.set_binning(2)
+    #     if self.cfg['MosaicPlanner']['hardware_trigger']:
+    #         self.imgSrc.stop_hardware_triggering()
+>>>>>>> c48ce57dfbb5347c3b76ee436d6336273b48cc72
 
 
 
@@ -1232,7 +1376,7 @@ class MosaicPanel(FigureCanvas):
                 message=self.cfg['Slack']['notify_list']
             self.slacker.chat.post_message(self.cfg['Slack']['slack_room'],'{} says: {}'.format(microscope,message))
 
-    def lookup_mountpoint(self,outdir):
+    def lookup_mountpoint(self, outdir):
         drive,tail = os.path.splitdrive(outdir)
         mountfile = os.path.join(drive,'mountpoint','mountpoint.json')
         with open(mountfile,'r') as fp:
@@ -1252,7 +1396,13 @@ class MosaicPanel(FigureCanvas):
             else:
                 pass
 
-    def move_to_initial_and_focus(self,x,y):
+    def move_to_xy_and_focus(self,x,y):
+        """ Move to specific stage pos and initiate
+            software autofocus.
+
+        DW: changed name to reflect functionality a
+            bit better.
+        """
         self.imgSrc.move_stage(x,y)
         stg = self.imgSrc.mmc.stage
         self.imgSrc.mmc.waitForDevice(stg)
@@ -1260,14 +1410,24 @@ class MosaicPanel(FigureCanvas):
         self.software_autofocus(acquisition_boolean=True)
         # self.imgSrc.setup_hardware_triggering(channels,exp_times)
 
-    def on_run_acq(self,outdir=None,event="none"):
+    def move_to_slice(self, slice_index=0):
+        """ Moves to a specific slice (section) on the
+            current ribbon.
+        """
+        slice_pos = self.posList.slicePositions[slice_index]
+        pos = slice_pos.x, slice_pos.y
+        self.setStagePosition(*pos)
+        return pos
+
+    def on_run_acq(self, outdir=None, event="none"):
         """ Main acquisition loop.
         """
-        print "running"
+        print("running")
 
         self.imgSrc.set_binning(1)
         binning=self.imgSrc.get_binning()
-        numchan,chrom_correction = self.summarize_channel_settings()
+        numchan, _ = self.summarize_channel_settings()
+        chrom_correction = False  # can we get rid of this?
 
         if not outdir:
             outdir = self.directory_settings.get_data_folder()
@@ -1304,8 +1464,8 @@ class MosaicPanel(FigureCanvas):
             #iterates over channels/exposure times in appropriate order
             channels = [ch for ch in self.channel_settings.channels if self.channel_settings.usechannels[ch]]
             exp_times = [self.channel_settings.exposure_times[ch] for ch in self.channel_settings.channels if self.channel_settings.usechannels[ch]]
-            print channels
-            print exp_times
+            print(channels)
+            print (exp_times)
             success=self.imgSrc.setup_hardware_triggering(channels,exp_times)
         else:
             success = False
@@ -1314,14 +1474,13 @@ class MosaicPanel(FigureCanvas):
 
         if not self.imgSrc.get_hardware_autofocus_state():
             self.slack_notify('HELP! lost autofocus on way to first position',notify=True)
-            print 'HELP! lost autofocus on way to first position'
+            print('HELP! lost autofocus on way to first position')
             goahead=False
 
 
         #loop over positions
+        self._is_acquiring = True
         for i,pos in enumerate(self.posList.slicePositions):
-            if i==(len(self.posList.slicePositions)-1):
-                    self.slack_notify('last section imaging beginning')
             if pos.activated:
                 if not goahead:
                     break
@@ -1342,10 +1501,10 @@ class MosaicPanel(FigureCanvas):
                     triggerflag = False
                     initial_position = self.get_initial_position(pos)
                     if initial_position is not None:
-                        print 'moving to initial position to focus'
+                        print('moving to initial position to focus')
                         initx = initial_position[0]
                         inity = initial_position[1]
-                        self.move_to_initial_and_focus(initx,inity)
+                        self.move_to_xy_and_focus(initx,inity)
 
                         #move to initial position and focus function goes here
                     for j,fpos in enumerate(pos.frameList.slicePositions):
@@ -1357,7 +1516,7 @@ class MosaicPanel(FigureCanvas):
                             break
                         if not self.imgSrc.get_hardware_autofocus_state():
                             self.slack_notify('HELP! lost autofocus between frames',notify=True)
-                            print "autofocus no longer enabled while moving between frames.. quiting"
+                            print("autofocus no longer enabled while moving between frames.. quiting")
                             goahead = False
                             break
                         if not self.messageQueue.empty():
@@ -1386,6 +1545,7 @@ class MosaicPanel(FigureCanvas):
                                 #time.sleep(0.1)
                                 wx.Yield()
                         #======================================================
+                        self._frame_count += 1
 
                 wx.Yield()
         if not goahead:
@@ -1407,6 +1567,10 @@ class MosaicPanel(FigureCanvas):
         self.imgSrc.set_binning(2)
         if (self.cfg['MosaicPlanner']['hardware_trigger']):
             self.imgSrc.stop_hardware_triggering()
+
+        self._is_acquiring = False
+        self._frame_count = 0
+        logging.info("Imaging Complete! Data saved to: {}".format(outdir))
 
     def edit_channels(self,event="none"):
         dlg = ChangeChannelSettings(None, -1, title = "Channel Settings", settings = self.channel_settings,style=wx.OK)
@@ -1731,7 +1895,9 @@ class MosaicPanel(FigureCanvas):
 
     def on_snap_tool(self,evt=""):
         #takes snap straight away
-        self.mosaicImage.imgCollection.oh_snap()
+        img = self.mosaicImage.imgCollection.oh_snap()
+        print(img.shape)
+        print(img.dtype)
         if self.mosaicImage.imgCollection.imgCount == 1:
             self.on_crop_tool()
         self.draw()
@@ -1747,7 +1913,6 @@ class MosaicPanel(FigureCanvas):
 
     def on_software_af_tool(self,evt=""):
         self.software_autofocus(buttonpress=True)
-        print "Great Job!"
 
     def on_fine_tune_tool(self,evt=""):
         print "fine tune tool not yet implemented, should do something to make fine adjustments to current position list"
@@ -1952,10 +2117,14 @@ class MosaicPanel(FigureCanvas):
 
 
 
-    def software_autofocus(self,acquisition_boolean = False, buttonpress = False): #MultiRibbons
+    def software_autofocus(self, acquisition_boolean=False, buttonpress=False):
+        """ Olga's autofocus routine.
+
+        TODO: read through this and see if i can get rid of some of it.
+        """
         if buttonpress:
             self.imgSrc.set_binning(1)
-        print "software autofocus"
+        print("software autofocus")
         if (acquisition_boolean) and (self.cfg['MosaicPlanner']['hardware_trigger']):
             self.imgSrc.stop_hardware_triggering()
         self.imgSrc.set_hardware_autofocus_state(False) #turn off autofocus
@@ -1968,15 +2137,15 @@ class MosaicPanel(FigureCanvas):
             zstack_number = self.cfg['Software Autofocus']['acquisition']
         else:
             zstack_number = self.cfg['Software Autofocus']['nonacquisition'] #number of images to take
-        print zstack_step, zstack_number
+        print(zstack_step, zstack_number)
         stack = np.zeros((height,width,zstack_number))
         offsets = []
         current_z = self.imgSrc.get_z()
-        print "current_z: ", current_z
-        print "autofocus offset: ", self.imgSrc.get_autofocus_offset()
+        print("current_z: ", current_z)
+        print("autofocus offset: ", self.imgSrc.get_autofocus_offset())
         furthest_distance = zstack_step * (zstack_number-1)/2
         zplanes_to_visit = [(current_z-furthest_distance) + i*zstack_step for i in range(zstack_number)]
-        print "z_planes:", zplanes_to_visit
+        print("z_planes:", zplanes_to_visit)
 
         for z_index, zplane in enumerate(zplanes_to_visit):
             self.imgSrc.set_z(zplane)
@@ -1986,8 +2155,8 @@ class MosaicPanel(FigureCanvas):
             offsets.append(self.imgSrc.get_autofocus_offset())
 
         #calculate best z
-        print "calculating focus"
-        print "offsets: ", offsets
+        print("calculating focus")
+        print("offsets: ", offsets)
         #using Laplacian
         score_med = np.zeros(zstack_number)
         score_std = np.zeros(zstack_number)
@@ -2009,10 +2178,10 @@ class MosaicPanel(FigureCanvas):
         def gauss_1d(x, amp, offset, x0, sigma_x):
             z = offset + amp*np.exp(-((x-x0)/sigma_x)**2)
             return z
-        print "zscore", zscore
+        print("zscore", zscore)
         popt, pcov = opt.curve_fit(gauss_1d, offsets1, zscore, p0=par_init)
         best_offset = popt[2]
-        print "best_offset: ", best_offset
+        print("best_offset: ", best_offset)
         self.imgSrc.set_autofocus_offset(best_offset) #reset autofocus offset
         time.sleep(2*self.cfg['MosaicPlanner']['autofocus_wait'])
         self.imgSrc.set_hardware_autofocus_state(True) #turn on autofocus
@@ -2031,17 +2200,6 @@ class MosaicPanel(FigureCanvas):
 
     def setStagePosition(self, newXPos, newYPos):
         self.imgSrc.move_stage(newXPos, newYPos)
-
-    # def setZPosition(self, newZPos):
-    #     self.imgSrc.set_z(newZPos)
-    #
-    # def getZPosition(self):
-    #     zPosition = self.imgSrc.get_z()
-    #     return zPosition
-
-    def getRemainingImagingTime(self):
-        remainingTime = wx.PD_REMAINING_TIME
-        return remainingTime
 
     def remoteSavePositionListJSON(self, trans=None):
         if self.cfg['MosaicPlanner']['default_arraypath']:
