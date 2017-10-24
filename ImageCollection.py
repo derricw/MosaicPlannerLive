@@ -328,12 +328,18 @@ class ImageCollection():
         for image in self.images:
             image.boundBox.printRect()
             
-    def load_image_collection(self):
-        #list all metadata files in rootdir
+    def load_image_collection(self, load_callback=None):
+        """ Loads all images from disk.
+
+            args:
+                load_callback (callable): called after each image load
+                    passed the image data
+        """
         #testimage=self.imageClass()  # DW: what is this for?
         if not os.path.isdir(self.rootpath):
             os.makedirs(self.rootpath)
         
+        #list all metadata files in rootdir
         metafiles=[os.path.join(self.rootpath,f) for f in os.listdir(self.rootpath) if f.endswith('.txt') ]
         
         print("loading metadata")
@@ -344,8 +350,10 @@ class ImageCollection():
             self.images.append(theimage)
             data=theimage.get_data()
             self.add_image_to_display(data,theimage.boundBox)
+            if load_callback:
+                load_callback(data)
             self.imgCount+=1
             logging.debug("Loaded img data from {}".format(metafile))
-     
+
         #del(testimage)
       

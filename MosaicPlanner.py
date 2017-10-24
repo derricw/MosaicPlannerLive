@@ -614,10 +614,22 @@ class MosaicPanel(FigureCanvas):
             self.clear_position_list()
             self.mosaicImage = None
         logging.info("Loading map images @ {}".format(self.rootPath))
-        self.mosaicImage=MosaicImage(self.subplot,self.posone_plot,self.postwo_plot,self.corrplot,self.imgSrc,rootPath,figure=self.figure)
+        self.mosaicImage=MosaicImage(self.subplot,
+                                     self.posone_plot,
+                                     self.postwo_plot,
+                                     self.corrplot,
+                                     self.imgSrc,
+                                     rootPath,
+                                     figure=self.figure,
+                                     load_callback=self._map_load_callback)
         self.on_crop_tool()
         self.draw()
         logging.info("Finished loading map!")
+
+    def _map_load_callback(self, img):
+        """ Callback for map image load.
+        """
+        pass
 
     def write_slice_metadata(self,filename,ch,xpos,ypos,zpos):
         f = open(filename, 'w')
@@ -1086,7 +1098,7 @@ class MosaicPanel(FigureCanvas):
                     break
             wx.Yield()
 
-    def setup_progress_bar(self):
+    def setup_acquisition_progress_bar(self):
         hasFrameList = self.posList.slicePositions[0].frameList is not None
         numSections = len(self.posList.slicePositions)
         if hasFrameList:
@@ -1095,10 +1107,16 @@ class MosaicPanel(FigureCanvas):
             numFrames = 1
         maxProgress = numSections*numFrames
 
-        self.progress = wx.ProgressDialog("A progress box", "Time remaining", maxProgress ,
+        self.acq_progress = wx.ProgressDialog("Acquisition Progress", "Time remaining", maxProgress,
         style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME | wx.PD_AUTO_HIDE)
 
         return numFrames,numSections
+
+    def map_progress_bar(self):
+        map_img_count = 100
+        self.map_progress = wx.ProgressDialog("Map Loading", "Time remaining", map_img_count,
+        style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME | wx.PD_AUTO_HIDE)
+
 
     def get_output_dir(self,directory_settings):
         assert(isinstance(directory_settings, DirectorySettings))
@@ -1148,7 +1166,7 @@ class MosaicPanel(FigureCanvas):
 
         binning = acquisition_settings['Binning']
 
-        numFrames,numSections = self.setup_progress_bar()
+        numFrames,numSections = self.setup_acquisition_progress_bar()
         hold_focus = not (zstack_settings.zstack_flag or chrome_correction)
 
         # starting with cycling through positions
@@ -1162,7 +1180,7 @@ class MosaicPanel(FigureCanvas):
                     print "autofocus not enabled when moving between sections.. "
                     goahead=False
                     break
-                (goahead, skip) = self.progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
+                (goahead, skip) = self.acq_progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
                 #turn on autofocus
                 self.ResetPiezo()
                 current_z = self.imgSrc.get_z()
@@ -1179,7 +1197,7 @@ class MosaicPanel(FigureCanvas):
                             break
                         self.multiDacq(outdir,chrome_correction,fpos.x,fpos.y,current_z,i,j,hold_focus)
                         self.ResetPiezo()
-                        (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
+                        (goahead, skip)=self.acq_progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
 
                 wx.Yield()
         if not goahead:
@@ -1191,8 +1209,8 @@ class MosaicPanel(FigureCanvas):
         self.dataQueue.put(STOP_TOKEN)
         self.saveProcess.join()
         print("save process ended")
-        self.progress.Destroy()
-        #self.progress.Close()
+        self.acq_progress.Destroy()
+        #self.acq_progress.Close()
         self.imgSrc.set_binning(2)
         if self.cfg['MosaicPlanner']['hardware_trigger']:
             self.imgSrc.stop_hardware_triggering()
@@ -1277,7 +1295,7 @@ class MosaicPanel(FigureCanvas):
         self.saveProcess.start()
 
 
-        numFrames,numSections = self.setup_progress_bar()
+        numFrames,numSections = self.setup_acquisition_progress_bar()
 
         hold_focus = not (self.zstack_settings.zstack_flag or chrom_correction)
 
@@ -1311,7 +1329,7 @@ class MosaicPanel(FigureCanvas):
                     self.slack_notify('HELP! lost autofocus between sections',notify=True)
                     goahead=False
                     break
-                (goahead, skip) = self.progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
+                (goahead, skip) = self.acq_progress.Update(i*numFrames,'section %d of %d'%(i,numSections-1))
                 #turn on autofocus
                 self.ResetPiezo()
                 current_z = self.imgSrc.get_z()
@@ -1359,12 +1377,12 @@ class MosaicPanel(FigureCanvas):
                         if i==(len(self.posList.slicePositions)-1):
                             if j == (len(pos.frameList.slicePositions) - 1):
                                 self.slack_notify('Done Imaging!')
-                        (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
+                        (goahead, skip)=self.acq_progress.Update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
                         #======================================================
                         if self.interface and self.interface.pause == True:
                             while self.interface.pause == True:
                                 self._check_sock(True)
-                                (goahead, skip)=self.progress.Update((i*numFrames) + j+1,'REMOTELY PAUSED -- section %d of %d, frame %d'%(i,numSections-1,j))
+                                (goahead, skip)=self.acq_progress.Update((i*numFrames) + j+1,'REMOTELY PAUSED -- section %d of %d, frame %d'%(i,numSections-1,j))
                                 #time.sleep(0.1)
                                 wx.Yield()
                         #======================================================
@@ -1384,7 +1402,7 @@ class MosaicPanel(FigureCanvas):
         self.dataQueue.put(STOP_TOKEN)
         self.saveProcess.join()
 
-        self.progress.Destroy()
+        self.acq_progress.Destroy()
         wx.Yield()
         self.imgSrc.set_binning(2)
         if (self.cfg['MosaicPlanner']['hardware_trigger']):

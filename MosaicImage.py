@@ -124,7 +124,15 @@ class ImageCutThread(threading.Thread):
 class MosaicImage():
     """A class for storing the a large mosaic imagein a matplotlib axis. Also contains functions for finding corresponding points
     in the larger mosaic image, and plotting informative graphs about that process in different axis"""
-    def __init__(self,axis,one_axis,two_axis,corr_axis,imgSrc,rootPath,figure=None):
+    def __init__(self,
+                 axis,
+                 one_axis,
+                 two_axis,
+                 corr_axis,
+                 imgSrc,
+                 rootPath,
+                 figure=None,
+                 load_callback=None):
         """initialization function which will plot the imagematrix passed in and set the bounds according the bounds specified by extent
         
         keywords)
@@ -156,7 +164,7 @@ class MosaicImage():
         (x,y)=imgSrc.get_xy()
         bbox=imgSrc.calc_bbox(x,y)
         self.imgCollection.set_view_home()
-        self.imgCollection.load_image_collection()
+        self.imgCollection.load_image_collection(load_callback=load_callback)
         
         self.maxvalue=512
         self.currentPosLine2D=Line2D([x],[y],marker='o',markersize=7,markeredgewidth=1.5,markeredgecolor='r',zorder=100)
