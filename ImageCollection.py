@@ -344,14 +344,14 @@ class ImageCollection():
         
         print("loading metadata")
         #loop over files reading in metadata, and initializing Image objects, reading images to update display
-        for metafile in metafiles:
+        for i, metafile in enumerate(metafiles):
             theimage=self.imageClass()
             theimage.load_from_metadata(metafile)
             self.images.append(theimage)
             data=theimage.get_data()
             self.add_image_to_display(data,theimage.boundBox)
             if load_callback:
-                load_callback(data)
+                load_callback(i)
             self.imgCount+=1
             logging.debug("Loaded img data from {}".format(metafile))
 
