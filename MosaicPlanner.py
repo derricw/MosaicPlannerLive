@@ -521,20 +521,28 @@ class MosaicPanel(FigureCanvas):
             #import traceback; traceback.print_exc()  #UNCOMMENT IF MP STOPS COMMUNICATING
             pass
 
-    def setZPosition(self,position, wait=True):
+    def setZPosition(self, position, wait=True):
         """ Sets objective height.
         """
-        focus = self.imgSrc.objective
-        currentpos = self.imgSrc.mmc.getPosition(focus)
-        self.imgSrc.mmc.setPosition(focus, position)
+        obj = self.imgSrc.objective
+        starting_pos = self.getZPosition()
+        self.imgSrc.mmc.setPosition(obj, position)
+
         if wait:
-            self.imgSrc.mmc.waitForDevice(focus)
+            # waits for the objective to reach the target position
+            # also shows a fancy progress bar
+            self.setup_objective_progress_bar(starting_pos, position)
+            total_distance = abs(position - starting_pos)
+            while self.imgSrc.mmc.deviceBusy(obj):
+                current = self.getZPosition()
+                travelled = abs(current - starting_pos)
+                self.obj_progress.update(travelled, "Current: {} / {}".format(current, position))
+            self.imgSrc.mmc.waitForDevice(obj)  # just in case
+            self.obj_progress.destroy()
+        
 
     def getZPosition(self):
-        focus = self.imgSrc.objective
-        currentpos = self.imgSrc.mmc.getPosition(focus)
-        return currentpos
-
+        return self.imgSrc.mmc.getPosition(self.imgSrc.objective)
 
     def grabGrid(self,pos=None,folder="",n=3):
         """ Grabs a nxn grid of images around `xytuple` and saves them to
@@ -618,10 +626,12 @@ class MosaicPanel(FigureCanvas):
         logging.info("Finished loading map!")
 
     def _map_load_callback(self, index):
-        """ Callback for map image load.
+        """ Callback for map image load. Currently just used to update
+                map load progress bar.
         """
-        # (goahead, skip)=self.acq_progress.update((i*numFrames) + j+1,'section %d of %d, frame %d'%(i,numSections-1,j))
-        (goahead, skip) = self.map_progress.update(index)
+        total_frames = self.map_progress.max_val
+        (goahead, skip) = self.map_progress.update(index, 
+            "Loaded: {} / {} images".format(index+1, total_frames))
         wx.Yield()
 
     def write_slice_metadata(self,filename,ch,xpos,ypos,zpos):
@@ -1176,6 +1186,10 @@ class MosaicPanel(FigureCanvas):
                                            'Loading {} images'.format(map_img_count),
                                            map_img_count)
 
+    def setup_objective_progress_bar(self, start, end):
+        self.obj_progress = ProgressDialog('Objective Moving',
+                                           'Moving from {} to {}'.format(start, end),
+                                           abs(end-start))
 
     def get_remaining_frames(self):
         """ Gets number of frames remaining in the acquisition.
