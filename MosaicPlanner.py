@@ -1059,6 +1059,7 @@ class MosaicPanel(FigureCanvas):
         settings = {
             "acquisition": self.get_current_acquisition_settings(),
         }
+        self.save_position_list() # just in case the user didn't already save it
         print(settings)
         if self.interface:
             self.interface.publish(settings)
