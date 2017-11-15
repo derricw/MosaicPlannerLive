@@ -336,10 +336,13 @@ class RemoteInterface(Publisher):
     def autofocus(self, search_range=260, step=20, settle_time=1.0, attempts=3):
         """ Triggers hardware autofocus.
         """
+        old_speed = self.get_objective_property("Speed")
+        self.set_objective_property("Speed", 100000)
         z_pos = self.parent.imgSrc.focus_search(search_range=search_range,
                                                 step=step,
                                                 settle_time=settle_time,
                                                 attempts=attempts)
+        self.set_objective_property("Speed", old_speed)
         logging.info("Autofocus completed @ objective height: {}".format(z_pos))
         return z_pos
 

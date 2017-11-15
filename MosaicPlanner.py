@@ -920,8 +920,9 @@ class MosaicPanel(FigureCanvas):
     @map_folder.setter
     def map_folder(self, folder):
         # DW: put this into dir settings as well
-        if not os.path.isdir(folder):
-            os.makedirs(folder)
+        if folder:
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
         self.parent.imgCollectDirPicker.SetPath(folder)
 
     def set_map_folder(self, folder):
@@ -2343,7 +2344,7 @@ class ZVISelectFrame(wx.Frame):
         self.imgCollectDirPicker=wx.DirPickerCtrl(self,message='Select a directory to store images',\
         path="",name='imgCollectPickerCtrl1',\
         style=wx.FLP_USE_TEXTCTRL, size=wx.Size(300,20))
-        self.imgCollectDirPicker.SetPath(self.cfg['MosaicPlanner']['default_imagepath'])
+        #self.imgCollectDirPicker.SetPath(self.cfg['MosaicPlanner']['default_imagepath'])
         self.imgCollect_load_button=wx.Button(self,id=wx.ID_ANY,label="Load",name="imgCollect load")
         self.new_map_button = wx.Button(self,id=wx.ID_ANY, label = "New Map", name="newmap button")
         self.Bind(wx.EVT_BUTTON,self.start_newmap,self.new_map_button)

@@ -514,7 +514,7 @@ class CameraSettings():
 
 class ChannelSettings():
     """simple struct for containing the parameters for the microscope"""
-    def __init__(self,channels,exposure_times={},zoffsets={},
+    def __init__(self,channels,exposure_times={},
                  usechannels={},prot_names={},map_chan=None,
                  def_exposure=100,def_offset=0.0,):
         #def_exposure is default exposure time in msec
@@ -563,8 +563,10 @@ class ChangeChannelSettings(wx.Dialog):
         vbox = wx.BoxSizer(wx.VERTICAL)   
         Nch=len(settings.channels)
         print Nch
+        for ch in settings.channels:
+            print ch
         
-        gridSizer=wx.FlexGridSizer(rows=Nch+3,cols=6,vgap=5,hgap=5)
+        gridSizer=wx.FlexGridSizer(rows=Nch+3,cols=5,vgap=5,hgap=5)
         
       
         gridSizer.Add(wx.StaticText(self,id=wx.ID_ANY,label="chan"),border=5)
@@ -572,13 +574,13 @@ class ChangeChannelSettings(wx.Dialog):
         gridSizer.Add(wx.StaticText(self,id=wx.ID_ANY,label="use?"),border=5)
         gridSizer.Add(wx.StaticText(self,id=wx.ID_ANY,label="exposure"),border=5)
         gridSizer.Add(wx.StaticText(self,id=wx.ID_ANY,label="map?"),border=5)
-        gridSizer.Add(wx.StaticText(self,id=wx.ID_ANY,label="zoffset     "),border=5)
+        # gridSizer.Add(wx.StaticText(self,id=wx.ID_ANY,label="zoffset     "),border=5)
 
         self.ProtNameCtrls=[]
         self.UseCtrls=[]
         self.ExposureCtrls=[]
         self.MapRadCtrls=[]
-        self.ZOffCtrls=[]
+        # self.ZOffCtrls=[]
         with open('ChannelSettings.json') as protein_file:
             self.ProteinSelection = json.load(protein_file)
         for ch in settings.channels:
@@ -643,8 +645,8 @@ class ChangeChannelSettings(wx.Dialog):
         prot_names=dict([])
         usechannels=dict([])
         exposure_times=dict([])
-        zoffsets=dict([])
-        print self.settings.channels
+        # zoffsets=dict([])
+        # print self.settings.channels
         for i,ch in enumerate(self.settings.channels):
             prot_names[ch]=self.ProtNameCtrls[i].GetValue()
             if (prot_names[ch] not in self.ProteinSelection['QuadBand0DAPI']) and (prot_names[ch] not in self.ProteinSelection['Proteins']):
@@ -658,8 +660,8 @@ class ChangeChannelSettings(wx.Dialog):
             exposure_times[ch]=self.ExposureCtrls[i].GetValue()
             if self.MapRadCtrls[i].GetValue():
                 map_chan=ch
-            zoffsets[ch]=self.ZOffCtrls[i].GetValue()
-        return ChannelSettings(self.settings.channels,exposure_times=exposure_times,zoffsets=zoffsets,usechannels=usechannels,prot_names=prot_names,map_chan=map_chan)
+            # zoffsets[ch]=self.ZOffCtrls[i].GetValue()
+        return ChannelSettings(self.settings.channels,exposure_times=exposure_times,usechannels=usechannels,prot_names=prot_names,map_chan=map_chan)
         
 class MosaicSettingsSchema(mm.Schema):
     mx = mm.fields.Int(required=True)
