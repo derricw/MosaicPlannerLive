@@ -257,6 +257,8 @@ class RemoteInterface(Publisher):
 
     def load_acquisition_settings(self, settings):
         session_data = self.parent.load_acquisition_settings(settings)
+        afc_offset = session_data.get('autofocus_offset', 11000)
+        self.parent.set_autofocus_offset(afc_offset)
         #session_data['datetime'] = str(session_data['datetime'])
         return session_data
 
@@ -334,7 +336,7 @@ class RemoteInterface(Publisher):
 
 
     def autofocus(self, search_range=260, step=20, settle_time=1.0, attempts=3):
-        """ Triggers hardware autofocus.
+        """ Triggers hardware autofocus search.
         """
         old_speed = self.get_objective_property("Speed")
         self.set_objective_property("Speed", 100000)

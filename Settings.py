@@ -22,6 +22,7 @@ import json
 import marshmallow as mm
 import logging
 import yaml
+import datetime
 
 class DirectorySettings():
 
@@ -79,8 +80,10 @@ class DirectorySettings():
 
     def get_data_folder(self):
         root = self.default_path
+        timestamp = datetime.datetime.now().strftime('%y%m%d%H%M%S')
         return os.path.join(root,self.Sample_ID,'raw','data',
-            'Ribbon{}'.format(self.Ribbon_ID),'session{}'.format(self.Session_ID))
+            'Ribbon{}'.format(self.Ribbon_ID),
+            'session_{}_{}'.format(timestamp, self.Session_ID))
 
     def get_map_folder(self):
         root = self.default_path

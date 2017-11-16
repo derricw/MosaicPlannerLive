@@ -1050,6 +1050,7 @@ class MosaicPanel(FigureCanvas):
         self.load_position_list(settings['position_list_path'])
         self.load_directory_settings(settings['directory_settings'])
         self.load_channel_settings(settings['channel_settings'])
+
         # load MM config?  probably shouldn't
         return settings
 
