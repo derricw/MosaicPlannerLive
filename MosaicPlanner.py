@@ -383,6 +383,7 @@ class MosaicPanel(FigureCanvas):
         while self.imgSrc is None:
             try:
                 self.load_micromanager_config(self.MM_config_file)
+                self.set_mm_timeout(self.cfg['MosaicPlanner']['mm_timeout'])
             except:
                 traceback.print_exc(file=sys.stdout)
                 dlg = wx.MessageBox("Error Loading Micromanager\n check scope and re-select config file","MM Error")
@@ -409,7 +410,6 @@ class MosaicPanel(FigureCanvas):
         self.CorrSettings.load_settings(config)
 
         # load directory settings
-
         self.outdirdict = {}
         self.mapdict = {}
 
@@ -539,10 +539,16 @@ class MosaicPanel(FigureCanvas):
                 self.obj_progress.update(travelled, "Current: {} / {}".format(current, position))
             self.imgSrc.mmc.waitForDevice(obj)  # just in case
             self.obj_progress.destroy()
-        
 
     def getZPosition(self):
         return self.imgSrc.mmc.getPosition(self.imgSrc.objective)
+
+    def set_mm_timeout(self, sec):
+        """ Sets MicroManager timeout
+        """
+        ms = int(sec*1000)
+        self.imgSrc.mmc.setTimeoutMs(ms)
+        logging.info("MicroManager timeout set to: {} ms".format(ms))
 
     def grabGrid(self,pos=None,folder="",n=3):
         """ Grabs a nxn grid of images around `xytuple` and saves them to

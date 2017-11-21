@@ -63,7 +63,9 @@ class ProgressDialog(object):
         self.current_val = value
         self._update_times.append(time.clock())
         self.publish_status()
-        return self.dialog.Update(value, self.message)
+        self.dialog.Update(value, self.message)
+        if self.current_val == self.max_val:
+            self.destroy()
         
     @property
     def remaining_time(self):

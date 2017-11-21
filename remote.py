@@ -102,7 +102,6 @@ class RemoteInterface(Publisher):
 
     def get_objective_z(self):
         """ Returns the current Z height of objective.
-
         """
         pos_z = self.parent.getZPosition()
         return pos_z
@@ -115,8 +114,9 @@ class RemoteInterface(Publisher):
                 speed (Optional[float]): custom speed for the move
         """
         if speed:
-            old_speed = self.get_objective_property("Speed")
-            self.set_objective_property("Speed", speed)
+            old_speed = self.get_objective_vel()
+            self.set_objective_vel(speed)
+
         t0 = time.clock()
         self.parent.setZPosition(pos_z)
         # make sure it got there
@@ -127,11 +127,14 @@ class RemoteInterface(Publisher):
             else:
                 break
         else:
+            if speed:
+                self.set_objective_vel(old_speed)
             raise Exception("Failed to reach target position before timeout.")
 
         logging.info("Set Z Position to z: {}".format(pos_z))
         if speed:
-            self.set_objective_property("Speed", old_speed)
+            self.set_objective_vel(old_speed)
+
 
     def get_objective_property_names(self):
         """ Gets a list of objective property names.
@@ -149,19 +152,22 @@ class RemoteInterface(Publisher):
         return self.parent.imgSrc.mmc.setProperty(objective, str(property), value)
 
     def set_objective_vel(self, vel):
-        """ Sets objective move speed
+        """ Sets the objective move speed.
         """
+        current = self.get_objective_vel()
+        self.set_objective_property("Speed", vel)
+        logging.info("Objective speed changed: {} -> {}".format(current, vel))
 
     def get_objective_vel(self):
-        """ Get objective speed
+        """ Returns the current objective move speed.
         """
+        speed = self.get_objective_property("Speed")
+        return speed
 
     def set_mm_timeout(self, sec):
         """ Sets MicroManager timeout
         """
-        ms = int(sec*1000)
-        self.parent.imgSrc.mmc.setTimeoutMs(ms)
-        logging.info("MicroManager timeout set to: {} ms".format(ms))
+        self.parent.set_mm_timeout(sec)
 
     def get_remaining_time(self):
         """ Returns remaining acquisition time.
@@ -258,7 +264,7 @@ class RemoteInterface(Publisher):
     def load_acquisition_settings(self, settings):
         session_data = self.parent.load_acquisition_settings(settings)
         afc_offset = session_data.get('autofocus_offset', 11000)
-        self.parent.set_autofocus_offset(afc_offset)
+        self.set_autofocus_offset(afc_offset)
         #session_data['datetime'] = str(session_data['datetime'])
         return session_data
 
@@ -311,28 +317,33 @@ class RemoteInterface(Publisher):
         """
         self.parent.move_to_setup_height()
 
-    def connect_objective(self, pos_z, speed=300000):
+    def connect_objective(self, pos_z, speed=100000):
         """ Connects the objective, moves to pos_z
         """
-        approach_offset = 6000.0 # configurable?
+        approach_offset = self.parent.cfg['Stage_Settings']['objective_connect_height']
         # go to approach offset first
         self.set_objective_z(approach_offset)
         # then go to objective slowly if desired
-        self.set_objective_z(pos_z + 50.0, speed=speed)
-        self.set_objective_z(pos_z, speed=speed)
+        #old_speed = self.get_objective_vel()  ## MS: stupid workaround because speed doesn't reset correct in the set_z functions
+        self.set_objective_z(pos_z + 100.0, speed)  ##MS: not always connecting to oil at +50
+        self.set_objective_z(pos_z, speed)
+        #self.set_objective_vel( old_speed )    ## MS: end of stupid workaround, see above
 
 
-    def disconnect_objective(self, pos_z=None, speed=300000):
-        approach_offset = 6000.0 #configurable?
+    def disconnect_objective(self, pos_z=None, speed=100000):
+        approach_offset = self.parent.cfg['Stage_Settings']['objective_disconnect_height']
         if pos_z is None:
             pos_z = approach_offset
-        self.set_objective_z(approach_offset, speed)
+        current_z = self.get_objective_z()
+        if current_z > approach_offset:
+            self.set_objective_z(approach_offset, speed)
         self.set_objective_z(pos_z)
 
     def software_autofocus(self):
         """ Triggers Olga's software autofocus.
         """
-        return self.parent.software_autofocus()
+        #return self.parent.software_autofocus()
+        return True
 
 
     def autofocus(self, search_range=260, step=20, settle_time=1.0, attempts=3):
