@@ -24,6 +24,7 @@ import multiprocessing as mp
 import pickle
 import datetime
 import json
+import shutil
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -384,6 +385,8 @@ class MosaicPanel(FigureCanvas):
             try:
                 self.load_micromanager_config(self.MM_config_file)
                 self.set_mm_timeout(self.cfg['MosaicPlanner']['mm_timeout'])
+                self.imgSrc.mmc.setProperty(self.imgSrc.objective, "Speed",
+                    self.cfg['Stage_Settings']['objective_base_vel'])  #DW: move this somewhere else
             except:
                 traceback.print_exc(file=sys.stdout)
                 dlg = wx.MessageBox("Error Loading Micromanager\n check scope and re-select config file","MM Error")
@@ -636,8 +639,7 @@ class MosaicPanel(FigureCanvas):
                 map load progress bar.
         """
         total_frames = self.map_progress.max_val
-        (goahead, skip) = self.map_progress.update(index, 
-            "Loaded: {} / {} images".format(index+1, total_frames))
+        self.map_progress.update(index, "Loaded: {} / {} images".format(index+1, total_frames))
         wx.Yield()
 
     def write_slice_metadata(self,filename,ch,xpos,ypos,zpos):
@@ -956,6 +958,16 @@ class MosaicPanel(FigureCanvas):
             folder = self.map_folder
         self.on_load(folder)
         return folder
+
+    def clear_map(self, folder=None):
+        """ Clears the current map folder.
+        """
+        if folder:
+            self.map_folder = folder
+        else:
+            folder = self.map_folder
+        shutil.rmtree(folder)
+        os.makedirs(folder)
 
     @property
     def position_list_path(self):

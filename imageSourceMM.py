@@ -637,7 +637,7 @@ class ImageSource():
     def get_autofocus_offset(self):
         if self.has_hardware_autofocus():
             return self.mmc.getAutoFocusOffset()
-    
+
     def shutdown(self):
         self.mmc.unloadAllDevices()
 

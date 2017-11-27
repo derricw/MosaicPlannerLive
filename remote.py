@@ -222,6 +222,12 @@ class RemoteInterface(Publisher):
         """
         self.parent.clear_position_list()
 
+    def clear_map(self, folder=""):
+        """ Clears map folder
+        """
+        self.parent.clear_map(folder)
+
+
     def set_directory_settings(self, root_dir, sample_id, ribbon_id, session_id):
         """ Sets directory settings exactly how Mosiac planner likes them.
         """
@@ -347,7 +353,7 @@ class RemoteInterface(Publisher):
 
 
     def autofocus(self, search_range=260, step=20, settle_time=1.0, attempts=3):
-        """ Triggers hardware autofocus search.
+        """ Triggers hardware AFC lock-in search.
         """
         old_speed = self.get_objective_property("Speed")
         self.set_objective_property("Speed", 100000)
