@@ -539,7 +539,7 @@ class MosaicPanel(FigureCanvas):
             while self.imgSrc.mmc.deviceBusy(obj):
                 current = self.getZPosition()
                 travelled = abs(current - starting_pos)
-                self.obj_progress.update(travelled, "Current: {} / {}".format(current, position))
+                self.obj_progress.update(travelled, "Current: {} -> {}".format(current, position))
             self.imgSrc.mmc.waitForDevice(obj)  # just in case
             self.obj_progress.destroy()
 
@@ -966,8 +966,15 @@ class MosaicPanel(FigureCanvas):
             self.map_folder = folder
         else:
             folder = self.map_folder
-        shutil.rmtree(folder)
-        os.makedirs(folder)
+        #import pdb; pdb.set_trace()
+        if folder:
+            for fname in os.listdir(folder):
+                if fname.endswith((".tif", ".txt")):
+                    os.remove(os.path.join(folder, fname))
+            #shutil.rmtree(folder) #DANGEROUS
+            #os.makedirs(folder)
+        else:
+            raise Exception("Cannot delete map folder.")
 
     @property
     def position_list_path(self):
@@ -1014,6 +1021,20 @@ class MosaicPanel(FigureCanvas):
         else:
             trans=None
         self.posList.save_position_list_JSON(path,trans=trans)
+
+    def delete_position_list(self, path=""):
+        """ Deletes a position list path. Defaults to path selected in GUI.
+        """
+        if not path:
+            map_dir = os.path.dirname(self.position_list_path)
+            for fname in os.listdir(map_dir):
+                if fname.endswith(".json"):
+                    os.remove(os.path.join(map_dir, fname))
+        else:
+            if fname.endswith(".json"):
+                os.remove(path)
+            else:
+                raise Exception("Position list should be json file.")
 
     def get_current_acquisition_settings(self):
         """ Gets all the data required to re-create this acquisition.
@@ -2448,9 +2469,7 @@ class ZVISelectFrame(wx.Frame):
         #self.mosaicCanvas.draw()
 
     def start_newmap(self,evt=None):
-        self.mosaicCanvas.What_toMap()
-        self.imgCollectDirPicker.SetPath(self.cfg['MosaicPlanner']['default_imagepath'])
-        self.array_filepicker.SetPath(self.cfg['MosaicPlanner']['default_arraypath'])
+        self.mosaicCanvas.clear_map()
 
     def toggle_transpose_xy(self,evt=None):
         print "toggle called",self.transpose_xy.IsChecked()

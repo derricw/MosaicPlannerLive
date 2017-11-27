@@ -156,12 +156,17 @@ class RemoteInterface(Publisher):
         """
         current = self.get_objective_vel()
         self.set_objective_property("Speed", vel)
+        for i in range(10):
+            if self.get_objective_vel() != vel:
+                time.sleep(0.05)
+            else:
+                break
         logging.info("Objective speed changed: {} -> {}".format(current, vel))
 
     def get_objective_vel(self):
         """ Returns the current objective move speed.
         """
-        speed = self.get_objective_property("Speed")
+        speed = int(self.get_objective_property("Speed"))
         return speed
 
     def set_mm_timeout(self, sec):
@@ -222,11 +227,29 @@ class RemoteInterface(Publisher):
         """
         self.parent.clear_position_list()
 
+    def delete_position_list(self, path=""):
+        """ Deletes the position list file.
+        """
+        self.parent.delete_position_list(path)
+
     def clear_map(self, folder=""):
-        """ Clears map folder
+        """ Clears map folder.
+        WARNING: deletes files.
         """
         self.parent.clear_map(folder)
 
+    def remap(self, ribbon_id=""):
+        if ribbon_id:
+            raise("Not implemented yet.")
+        try:
+            self.clear_position_list()
+            self.delete_position_list()
+        except Exception:
+            logging.warning("no position list to clear")
+        try:
+            self.clear_map()
+        except Exception as e:
+            logging.warning("failed to clear map: {}".format(e))
 
     def set_directory_settings(self, root_dir, sample_id, ribbon_id, session_id):
         """ Sets directory settings exactly how Mosiac planner likes them.

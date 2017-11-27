@@ -63,8 +63,11 @@ class ProgressDialog(object):
         self.current_val = value
         self._update_times.append(time.clock())
         self.publish_status()
-        self.dialog.Update(value, self.message)
         if self.current_val == self.max_val:
+            self.destroy()
+        try:
+            self.dialog.Update(value, self.message)
+        except Exception:
             self.destroy()
         
     @property
