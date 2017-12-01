@@ -66,7 +66,7 @@ class ProgressDialog(object):
         if self.current_val == self.max_val:
             self.destroy()
         try:
-            self.dialog.Update(value, self.message)
+            return self.dialog.Update(value, self.message)
         except Exception:
             self.destroy()
         
