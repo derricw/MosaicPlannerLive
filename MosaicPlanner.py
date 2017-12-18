@@ -24,6 +24,7 @@ import multiprocessing as mp
 import pickle
 import datetime
 import json
+import yaml
 import shutil
 
 import logging
@@ -869,12 +870,13 @@ class MosaicPanel(FigureCanvas):
             pass
         elif isinstance(settings, dict):
             settings = ChannelSettings(**settings)
-        elif isinstance(settings, str):
+        elif isinstance(settings, (str, unicode)):
             with open(settings, 'r') as f:
                 settings_dict = yaml.load(f)
                 settings = ChannelSettings(**settings_dict)
         else:
-            raise NotImplementedError("Only dict, path or ChannelSettings for now.")
+            raise NotImplementedError("Only dict, path or ChannelSettings for now, not: {}".format(
+                type(settings)))
         self.channel_settings = settings
         # DO WE NEED TO SET EXPOSURES HERE?
         return self.channel_settings
@@ -1216,7 +1218,7 @@ class MosaicPanel(FigureCanvas):
         maxProgress = numSections*numFrames
 
         self.acq_progress = ProgressDialog("Acquisition Progress",
-                                           'Acquiring {} sectionts'.format(numSections),
+                                           'Acquiring {} sections'.format(numSections),
                                            maxProgress)
 
         return numFrames,numSections
@@ -1403,7 +1405,7 @@ class MosaicPanel(FigureCanvas):
             bit better.
         """
         self.imgSrc.move_stage(x,y)
-        stg = self.imgSrc.mmc.stage
+        stg = self.imgSrc.stage
         self.imgSrc.mmc.waitForDevice(stg)
         # self.imgSrc.stop_hardware_triggering()
         self.software_autofocus(acquisition_boolean=True)
