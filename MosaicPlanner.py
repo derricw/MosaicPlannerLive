@@ -98,7 +98,7 @@ except ImportError:
     Slacker = None
     logging.warning("Couldn't import slacker. No slack messages will be posted.")
 
-from SaveThread import file_save_process
+from SaveThread import file_save_process, write_img
 from imgprocessing import make_thumbnail
 import scipy.optimize as opt #softwarea-autofocus
 
@@ -2139,6 +2139,7 @@ class MosaicPanel(FigureCanvas):
             zstack_number = self.cfg['Software Autofocus']['nonacquisition'] #number of images to take
         print(zstack_step, zstack_number)
         stack = np.zeros((height,width,zstack_number))
+        current_offset = self.imgSrc.get_autofocus_offset()
         offsets = []
         current_z = self.imgSrc.get_z()
         print("current_z: ", current_z)
@@ -2146,6 +2147,8 @@ class MosaicPanel(FigureCanvas):
         furthest_distance = zstack_step * (zstack_number-1)/2
         zplanes_to_visit = [(current_z-furthest_distance) + i*zstack_step for i in range(zstack_number)]
         print("z_planes:", zplanes_to_visit)
+
+
 
         for z_index, zplane in enumerate(zplanes_to_visit):
             self.imgSrc.set_z(zplane)
@@ -2182,6 +2185,10 @@ class MosaicPanel(FigureCanvas):
         popt, pcov = opt.curve_fit(gauss_1d, offsets1, zscore, p0=par_init)
         best_offset = popt[2]
         print("best_offset: ", best_offset)
+        if acquisition_boolean:
+            print 'saving images'
+            self.saveAFstack(zstack_number,stack, offsets,best_offset)
+
         self.imgSrc.set_autofocus_offset(best_offset) #reset autofocus offset
         time.sleep(2*self.cfg['MosaicPlanner']['autofocus_wait'])
         self.imgSrc.set_hardware_autofocus_state(True) #turn on autofocus
@@ -2193,6 +2200,29 @@ class MosaicPanel(FigureCanvas):
         if buttonpress:
             self.imgSrc.set_binning(2)
         return best_offset
+
+    def saveAFstack(self,zstack_number,stack, offsets, best_offset):
+        AF_path = self.map_folder + 'AF_images'
+        # print AF_path
+        if not os.path.exists(AF_path):
+            os.makedirs(AF_path)
+        for i in range(zstack_number):
+            filename = 'AFimage%s.tif' % (str(i))
+            metafilename = AF_path + 'AFoffsets.txt' 
+            path = os.path.join(AF_path,filename)
+            # print path
+            write_img(path,stack[:,:,i])
+        print 'done'
+
+        f = open(metafilename, 'w')
+        f.write('Offsets:\t')
+        f.write(str(offsets))
+        f.write('\nBest Offset:\t')
+        f.write(str(best_offset))
+        f.close()
+
+
+
 
     def getStagePosition(self):
         stagePosition = self.imgSrc.get_xy()
