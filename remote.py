@@ -118,11 +118,14 @@ class RemoteInterface(Publisher):
             self.set_objective_vel(speed)
 
         t0 = time.clock()
-        self.parent.setZPosition(pos_z)
+        # self.parent.setZPosition(pos_z)
         # make sure it got there
         timeout = self.parent.imgSrc.mmc.getTimeoutMs() / 1000.0
+
         while time.clock()-t0 < timeout:
-            if not (pos_z-0.5 < self.get_objective_z() < pos_z+0.5):
+            current_z = self.get_objective_z()
+            if not (pos_z-0.5 < current_z < pos_z+0.5):
+                self.parent.setZPosition(pos_z)
                 time.sleep(0.1)
             else:
                 break

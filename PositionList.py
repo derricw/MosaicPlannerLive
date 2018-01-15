@@ -16,8 +16,10 @@
 #  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 # 
 #===============================================================================
- 
-from Settings import MosaicSettings, CameraSettings, SmartSEMSettings,MosaicSettingsSchema, CameraSettingsSchema
+import os
+import logging
+import json
+
 import numpy as np
 from numpy import sin, pi, cos, arctan, sin, tan, sqrt
 import csv
@@ -27,13 +29,12 @@ import matplotlib.transforms
 from matplotlib import path
 from matplotlib.lines import Line2D
 from matplotlib.quiver import Quiver
-#from matplotlib.nxutils import points_inside_poly
-from CenterRectangle import CenterRectangle
-import os
 from scipy.interpolate import griddata
 import lxml.etree as ET
-import json
 import marshmallow as mm
+
+from CenterRectangle import CenterRectangle
+from Settings import MosaicSettings, CameraSettings, SmartSEMSettings,MosaicSettingsSchema, CameraSettingsSchema
 
 class NumberDisplaySettingsSchema(mm.Schema):
     shownumbers = mm.fields.Bool(required=True)
@@ -1429,7 +1430,11 @@ class slicePosition():
         """update the matplotlib representation of this point's mosaic"""
         if not self.axis: return None
         self.__updateMosaicSize()
-        self.__updateFramesLayout()
+        try:
+            self.__updateFramesLayout()
+        except Exception as e:
+            # DW: this seems to fail sometimes when loading position list
+            logging.exception("Failed to update MPL represention of mosaic.")
 
     def set_activated(self,activated,type = 'slice'):
 
