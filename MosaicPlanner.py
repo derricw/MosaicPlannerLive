@@ -873,7 +873,7 @@ class MosaicPanel(FigureCanvas):
         elif isinstance(settings, (str, unicode)):
             with open(settings, 'r') as f:
                 settings_dict = yaml.load(f)
-                settings = ChannelSettings(**settings_dict)
+                settings = ChannelSettings(**settings_dict['channel_settings'])
         else:
             raise NotImplementedError("Only dict, path or ChannelSettings for now, not: {}".format(
                 type(settings)))

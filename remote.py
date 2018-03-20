@@ -195,6 +195,11 @@ class RemoteInterface(Publisher):
         """
         self.parent.load_channel_settings(settings)
 
+    def load_channel_session(self, session_num):
+        session_file = "channels_session_{}.yaml".format(session_num)
+        self.load_channel_settings(session_file)
+
+
     def load_map(self, folder=None):
         """ Loads the map at the specified folder
                 or at the one currently specified in the GUI.
